@@ -116,7 +116,7 @@ export class Graphics {
 
         for (let x = minX; x < maxX; x++) {
             for (let y = minY; y < maxY; y++) {
-                const cell = this.world.getCell((x % this.world.width + this.world.width) % this.world.width, y < 0 ? 0 : y);
+                const cell = this.world.getCell((x % this.world.width + this.world.width) % this.world.width, y);
 
                 const xOff = baseXOff + x * this.cellSize;
                 const yOff = baseYOff - y * this.cellSize;
@@ -181,11 +181,11 @@ export class Graphics {
                 return "#" + red.toString(16).padStart(2, "0") + green.toString(16).padStart(2, "0") + "ff";
             }
             case BgCell.Dirt:
-                return "#604020";
+                return "#402a15";
             case BgCell.Stone:
-                return "#555555";
+                return "#404040";
             case BgCell.Bedrock:
-                return "#2a2a2a";
+                return "#202020";
         }
     }
 }

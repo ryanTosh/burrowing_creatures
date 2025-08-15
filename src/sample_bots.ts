@@ -1,6 +1,6 @@
 import { biteByCreature, Bot, climbDown, climbUp, dig, dropRock, eat, left, pickUpRock, right } from "./bot_interface";
 import { Creature, Move } from "./controller";
-import { Cell, cellIsNotSolid, World } from "./world";
+import { Cell, cellIsNotSolid, cellIsRock, World } from "./world";
 
 export const sample_bots: Bot[] = [
     {
@@ -90,17 +90,31 @@ export const sample_bots: Bot[] = [
         id: "burrower",
         name: "Burrower",
         run(self: Creature, _others: Creature[], world: World): Move {
-            // Store spawn y level
-            if (!("spawn_y" in self.ctx)) self.ctx.spawn_y = self.pos.y;
+            // Create a "stage" property in self.ctx
+            if (!("stage" in self.ctx)) self.ctx.stage = 0;
 
-            if (self.fullness > 100) {
+            // Stage 0: Dig straight down until hungry or at bedrock
+            // Stage 1: Climb up shaft hunting for moss (not yet at bedrock)
+            // Stage 2: Climb up shaft hunting for moss (found bedrock)
+            // Stage 3: Climb down shaft hunting for moss (found bedrock)
+
+            if (self.ctx.stage == 0) {
+                // In stage 0, the goal is to dig straight down
+
                 const cellBeneath = world.getCell(self.pos.x, self.pos.y - 1);
 
+                // Look for food
+                for (const offset of [[0, -1], [-1, 1], [1, 1], [-1, 0], [1, 0], [-1, -1], [1, -1]]) {
+                    const cell = world.getCell(self.pos.x + offset[0], self.pos.y + offset[1]);
+                    if ([Cell.GrassyDirt, Cell.SmallGrassTufts, Cell.LargeGrassTufts, Cell.MossyStone, Cell.MossyChippedStone, Cell.MossyBedrock].includes(cell)) {
+                        return eat(self.pos.x + offset[0], self.pos.y + offset[1]);
+                    }
+                }
                 // If in a shaft and not at the bottom, go down
                 if (cellIsNotSolid(cellBeneath)) {
                     return climbDown();
                 }
-                // Trying to dig down; pick up rock if it's in the way
+                // Pick up rock if it's in the way
                 if (cellBeneath == Cell.Rock) {
                     // If already carrying a rock, dig a hole off to the side to drop it in
                     if (self.carryingRock) {
@@ -118,46 +132,101 @@ export const sample_bots: Bot[] = [
 
                     return pickUpRock(self.pos.x, self.pos.y - 1);
                 }
+                // Check if past dirt
+                let foundDirt = false;
+                for (const offset of [[-1, 1], [1, 1], [-1, 0], [1, 0]]) {
+                    const cell = world.getCell(self.pos.x + offset[0], self.pos.y + offset[1]);
+                    if ([Cell.GrassyDirt, Cell.BarrenDirt, Cell.Dirt].includes(cell) || cellIsRock(cell)) {
+                        // We've found dirt! Move on to stage 2
+                        foundDirt = true;
+                        break;
+                    }
+                }
+                // If hungry and below stone, switch to stage 1
+                if (!foundDirt && self.fullness < 40) {
+                    self.ctx.stage = 1;
+                    return climbUp();
+                }
                 // Dig down if not at bedrock
                 if (cellBeneath != Cell.Bedrock && cellBeneath != Cell.MossyBedrock) {
                     return dig(self.pos.x, self.pos.y - 1);
                 }
-                // Stay still once at bedrock
-                return null;
-            } else {
-                // Eat moss if easy to find
-                if ([Cell.MossyStone, Cell.MossyChippedStone, Cell.MossyBedrock].includes(world.getCell(self.pos.x, self.pos.y - 1))) {
-                    return eat(self.pos.x, self.pos.y - 1);
-                }
-                if ([Cell.MossyStone, Cell.MossyChippedStone, Cell.MossyBedrock].includes(world.getCell(self.pos.x - 1, self.pos.y))) {
-                    return eat(self.pos.x - 1, self.pos.y);
-                }
-                if ([Cell.MossyStone, Cell.MossyChippedStone, Cell.MossyBedrock].includes(world.getCell(self.pos.x + 1, self.pos.y))) {
-                    return eat(self.pos.x + 1, self.pos.y);
-                }
 
-                // Otherwise, go up, if not at the surface
-                if (self.pos.y < self.ctx.spawn_y - 1) {
-                    return climbUp();
-                }
+                // If we've reached this point, we're at stage 2!
+                self.ctx.stage = 2;
+            }
 
-                // Once at the surface, try to find adjacent grass
+            if (self.ctx.stage == 1 || self.ctx.stage == 2) {
+                // In stages 1 and 2, the goal is to move up our tunnel until we hit dirt
+
+                // Check four spaces around us for dirt
                 for (const offset of [[-1, 1], [1, 1], [-1, 0], [1, 0]]) {
                     const cell = world.getCell(self.pos.x + offset[0], self.pos.y + offset[1]);
-                    if ([Cell.SmallGrassTufts, Cell.LargeGrassTufts, Cell.GrassyDirt].includes(cell)) {
-                        return eat(self.pos.x + offset[0], self.pos.y + offset[1]);
+                    if ([Cell.GrassyDirt, Cell.BarrenDirt, Cell.Dirt].includes(cell) || cellIsRock(cell)) {
+                        // We've found dirt! Move on to stage 0 or 3
+                        self.ctx.stage = self.ctx.stage == 1 ? 0 : 3;
+                        break;
                     }
                 }
 
-                // Otherwise, stay still
-                return null;
+                // If we didn't find dirt, continue with current stage
+                if (self.ctx.stage == 1 || self.ctx.stage == 2) {
+                    // If we're not full, search for moss
+                    if (self.fullness < 180) {
+                        // Check the spaces around us for moss
+                        for (const offset of [[-1, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [1, 1]]) {
+                            const cell = world.getCell(self.pos.x + offset[0], self.pos.y + offset[1]);
+                            if ([Cell.MossyStone, Cell.MossyChippedStone, Cell.MossyBedrock].includes(cell)) {
+                                return eat(self.pos.x + offset[0], self.pos.y + offset[1]);
+                            }
+                        }
+                    }
+
+                    // If we didn't find moss or we're not hungry, move up
+                    return climbUp();
+                }
             }
 
+            // Otherwise, we're in stage 3
+            // In stage 3, the goal is to move down our tunnel until we hit the bottom
+
+            // If we hit the bottom, return to stage 1
+            const cellBeneath = world.getCell(self.pos.x, self.pos.y - 1);
+            if (cellBeneath == Cell.Bedrock || cellBeneath == Cell.MossyBedrock) {
+                self.ctx.stage = 1;
+
+                // Check the bottom for moss
+                if (cellBeneath == Cell.MossyBedrock) {
+                    return eat(self.pos.x, self.pos.y - 1);
+                }
+
+                // Otherwise, just start climbing up
+                return climbUp();
+            }
+            // If there's still stone to be dug, continue with stage 0
+            if (cellBeneath != Cell.Empty) {
+                self.ctx.stage = 0;
+                return dig(self.pos.x, self.pos.y - 1);
+            }
+
+            // Do the same thing as stage 1, but climbing down instead
+            if (self.fullness < 180) {
+                for (const offset of [[-1, 1], [1, 1], [-1, 0], [1, 0], [-1, -1], [1, -1]]) {
+                    const cell = world.getCell(self.pos.x + offset[0], self.pos.y + offset[1]);
+                    if ([Cell.MossyStone, Cell.MossyChippedStone, Cell.MossyBedrock].includes(cell)) {
+                        return eat(self.pos.x + offset[0], self.pos.y + offset[1]);
+                    }
+                }
+            }
+
+            return climbDown();
+            
             // Flaws
             // - Can get mildly softlocked by certain formations of rocks
-            // - Is easy prey when not busy
-            // - Can get stuck waiting at the surface when moss has grown further down
-            // - Can be softlocked if terrain changes occur at the surface
+            // - Is easy prey at all times, especially to dropped rocks
+            // - Could spend ages going in the opposite direction of just-grown moss
+            // - Can be softlocked if dirt is dug near the boundary with stone
+            // - Can starve digging initial hole if unlucky
         }
     }
 ];

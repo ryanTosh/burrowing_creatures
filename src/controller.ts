@@ -61,17 +61,17 @@ const LARGE_GRASS_TUFTS_HIT_POINTS = 1;
 const GRASSY_DIRT_HIT_POINTS = 1;
 const MOSS_HIT_POINTS = 0;
 
-const BARREN_DIRT_SKY_TO_DIRT_ODDS = 0.0625;
-const DIRT_SKY_TO_GRASSY_DIRT_ODDS = 0.0625;
-const GRASSY_DIRT_NO_SKY_TO_DIRT_ODDS = 0.125;
-const BARREN_DIRT_NO_SKY_TO_DIRT_ODDS = 0.125;
-const SMALL_GRASS_TUFTS_NO_SKY_DISAPPEAR_ODDS = 0.125;
-const LARGE_GRASS_TUFTS_NO_SKY_DISAPPEAR_ODDS = 0.125;
-const GRASSY_DIRT_SKY_GROW_TUFTS_ODDS = 0.03125;
-const SMALL_GRASS_TUFTS_SKY_GROW_ODDS = 0.03125;
-const STONE_TO_MOSSY_ODDS = 0.00625;
-const CHIPPED_STONE_TO_MOSSY_ODDS = 0.009375;
-const BEDROCK_TO_MOSSY_ODDS = 0.003125;
+const BARREN_DIRT_SKY_TO_DIRT_ODDS = 1 / 128;
+const DIRT_SKY_TO_GRASSY_DIRT_ODDS = 1 / 128;
+const GRASSY_DIRT_NO_SKY_TO_DIRT_ODDS = 1 / 8;
+const BARREN_DIRT_NO_SKY_TO_DIRT_ODDS = 1 / 8;
+const SMALL_GRASS_TUFTS_NO_SKY_DISAPPEAR_ODDS = 1 / 8;
+const LARGE_GRASS_TUFTS_NO_SKY_DISAPPEAR_ODDS = 1 / 8;
+const GRASSY_DIRT_SKY_GROW_TUFTS_ODDS = 1 / 1024;
+const SMALL_GRASS_TUFTS_SKY_GROW_ODDS = 1 / 1024;
+const STONE_TO_MOSSY_ODDS = 2 / 2048;
+const CHIPPED_STONE_TO_MOSSY_ODDS = 3 / 2048;
+const BEDROCK_TO_MOSSY_ODDS = 1 / 2048;
 
 const KILL_FERTILIZE_ROUNDS = 128;
 const KILL_FERTILIZE_MAX_DIST = 12;
@@ -88,7 +88,7 @@ export class Controller {
 
         for (let i = 0; i < copies; i++) {
             for (let j = 0; j < bots.length; j++) {
-                this.creatures.push({
+                this.creatures[i * bots.length + j] = {
                     id: ids.splice(Math.floor(Math.random() * ids.length), 1)[0],
                     pos: this.findCreatureSpawnPos(),
                     hp: SPAWN_HIT_POINTS,
@@ -98,7 +98,7 @@ export class Controller {
                     carryingRock: false,
                     bot: bots[j],
                     ctx: {}
-                });
+                };
             }
         }
 
@@ -131,6 +131,7 @@ export class Controller {
 
     public tick(tickCtr: number) {
         for (let i = 0; i < this.creatures.length; i++) {
+            console.log(i, this.creatures);
             const creature = this.creatures[i];
 
             if (creature.fullness > 0) {
@@ -420,12 +421,12 @@ export class Controller {
                     }
                     case Cell.BarrenDirt: {
                         if (y < roof[x] && Math.random() < BARREN_DIRT_NO_SKY_TO_DIRT_ODDS) {
-                            this.world.setCell(x, y + 1, Cell.Dirt);
+                            this.world.setCell(x, y, Cell.Dirt);
                             break;
                         }
 
                         if (y >= roof[x] && Math.random() < BARREN_DIRT_SKY_TO_DIRT_ODDS) {
-                            this.world.setCell(x, y + 1, Cell.Dirt);
+                            this.world.setCell(x, y, Cell.Dirt);
                             break;
                         }
 
@@ -433,7 +434,7 @@ export class Controller {
                     }
                     case Cell.Dirt: {
                         if (y >= roof[x] && Math.random() < DIRT_SKY_TO_GRASSY_DIRT_ODDS) {
-                            this.world.setCell(x, y + 1, Cell.GrassyDirt);
+                            this.world.setCell(x, y, Cell.GrassyDirt);
                             break;
                         }
 
@@ -496,7 +497,7 @@ export class Controller {
                     }
                     case Cell.Stone: {
                         if (this.world.isBorderingEmpty(x, y) && Math.random() < STONE_TO_MOSSY_ODDS) {
-                            this.world.setCell(x, y + 1, Cell.MossyStone);
+                            this.world.setCell(x, y, Cell.MossyStone);
                             break;
                         }
 
@@ -504,7 +505,7 @@ export class Controller {
                     }
                     case Cell.ChippedStone: {
                         if (this.world.isBorderingEmpty(x, y) && Math.random() < CHIPPED_STONE_TO_MOSSY_ODDS) {
-                            this.world.setCell(x, y + 1, Cell.MossyChippedStone);
+                            this.world.setCell(x, y, Cell.MossyChippedStone);
                             break;
                         }
 
@@ -512,7 +513,7 @@ export class Controller {
                     }
                     case Cell.Bedrock: {
                         if (this.world.isBorderingEmpty(x, y) && Math.random() < BEDROCK_TO_MOSSY_ODDS) {
-                            this.world.setCell(x, y + 1, Cell.MossyBedrock);
+                            this.world.setCell(x, y, Cell.MossyBedrock);
                             break;
                         }
 

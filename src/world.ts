@@ -42,11 +42,11 @@ export function cellIsFallingRock(cell: Cell): boolean {
 }
 
 export function cellIsSolid(cell: Cell): boolean {
-    return cell == Cell.Empty || cell == Cell.SmallGrassTufts || cell == Cell.LargeGrassTufts;
+    return !cellIsNotSolid(cell);
 }
 
 export function cellIsNotSolid(cell: Cell): boolean {
-    return !cellIsSolid(cell);
+    return cell == Cell.Empty || cell == Cell.SmallGrassTufts || cell == Cell.LargeGrassTufts;
 }
 
 export enum BgCell {
@@ -189,7 +189,7 @@ export class World {
 
     public findTopSolidY(x: number): number {
         let y = this.grid.length;
-        while (this.isNotSolid(x, y - 1)) y--;
+        while (this.isNotSolid(x, y)) y--;
         return y;
     }
 
