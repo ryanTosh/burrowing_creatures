@@ -9,22 +9,13 @@ export interface InteractMove {
 export type Move = null | { type: "left" | "right" | "climb_up" | "climb_down" } | InteractMove | { type: "bite", victim: number };
 
 export function isValidTarget(creature: Creature, pos: { x: number, y: number }, world: World): boolean {
-    if (pos.x < 0 || pos.x >= world.width) pos.x = (pos.x % world.width + world.width) % world.width;
+    return world.isReachableFrom(creature.pos.x, creature.pos.y, pos.x, pos.y);
+}
 
-    const cx = creature.pos.x;
-    const cy = creature.pos.y;
-
-    // account for wrapping
-
-    if (cx == pos.x && cy == pos.y) return true;
-    if (cx == pos.x && (Math.abs(cy - pos.y) == 1)) return true;
-    if (Math.abs(cx - pos.x) == 1 && cy == pos.y) return true;
-    if (cx == pos.x - 1 && cy == pos.y - 1 && (world.isNotSolid(pos.x - 1, pos.y)) || world.isNotSolid(pos.x, pos.y - 1)) return true;
-    if (cx == pos.x - 1 && cy == pos.y + 1 && (world.isNotSolid(pos.x - 1, pos.y)) || world.isNotSolid(pos.x, pos.y + 1)) return true;
-    if (cx == pos.x + 1 && cy == pos.y - 1 && (world.isNotSolid(pos.x + 1, pos.y)) || world.isNotSolid(pos.x, pos.y - 1)) return true;
-    if (cx == pos.x + 1 && cy == pos.y + 1 && (world.isNotSolid(pos.x + 1, pos.y)) || world.isNotSolid(pos.x, pos.y + 1)) return true;
-
-    return false;
+export interface LastMove {
+    tick: number;
+    pos: { x: number, y: number };
+    move: Move | null;
 }
 
 export interface Creature {
@@ -37,6 +28,7 @@ export interface Creature {
     carryingRock: boolean;
     bot?: Bot;
     ctx?: any;
+    lastMoves?: LastMove[];
 }
 
 const SPAWN_HIT_POINTS = 18;
@@ -73,12 +65,13 @@ const STONE_TO_MOSSY_ODDS = 2 / 2048;
 const CHIPPED_STONE_TO_MOSSY_ODDS = 3 / 2048;
 const BEDROCK_TO_MOSSY_ODDS = 1 / 2048;
 
-const KILL_FERTILIZE_ROUNDS = 128;
-const KILL_FERTILIZE_MAX_DIST = 12;
+const KILL_FERTILIZE_ROUNDS = 1024;
+const KILL_FERTILIZE_MAX_DIST = 8;
 
 export class Controller {
     private world: World;
     private creatures: Creature[];
+    private deadCreatures: ({ diedTick: number; creature: Creature })[] = [];
 
     constructor(world: World, bots: Bot[], copies: number) {
         this.world = world;
@@ -97,12 +90,25 @@ export class Controller {
                     falling: false,
                     carryingRock: false,
                     bot: bots[j],
-                    ctx: {}
+                    ctx: {},
+                    lastMoves: []
                 };
             }
         }
 
         this.creatures.sort((x, y) => x.id - y.id);
+    }
+
+    public getWorld(): World {
+        return this.world;
+    }
+
+    public getCreatures(): Creature[] {
+        return this.creatures;
+    }
+
+    public getDeadCreatures(): ({ diedTick: number, creature: Creature })[] {
+        return this.deadCreatures;
     }
 
     private findCreatureSpawnPos() {
@@ -131,20 +137,19 @@ export class Controller {
 
     public tick(tickCtr: number) {
         for (let i = 0; i < this.creatures.length; i++) {
-            console.log(i, this.creatures);
             const creature = this.creatures[i];
 
             if (creature.fullness > 0) {
                 creature.fullness -= FULLNESS_LOSS_PER_TICK;
             } else {
-                if (this.damageCreature(creature, FULLNESS_LOSS_PER_TICK, false) != -1) {
+                if (this.damageCreature(creature, FULLNESS_LOSS_PER_TICK, tickCtr, false) != -1) {
                     i--;
                     continue;
                 }
             }
 
-            if (this.world.isNotSolid(creature.pos.x, creature.pos.y - 1)) {
-                if (creature.falling || this.world.isNotSolid(creature.pos.x - 1, creature.pos.y) || this.world.isNotSolid(creature.pos.x + 1, creature.pos.y)) {
+            if (!this.world.isSolid(creature.pos.x, creature.pos.y - 1)) {
+                if (creature.falling || !this.world.isSolid(creature.pos.x - 1, creature.pos.y) || !this.world.isSolid(creature.pos.x + 1, creature.pos.y)) {
                     creature.falling = true;
                     creature.fallDist += 1;
                     creature.pos.y -= 1;
@@ -152,7 +157,7 @@ export class Controller {
                 }
             } else if (creature.falling) {
                 if (creature.fallDist > FALL_MAX_SAFE_DIST) {
-                    if (this.damageCreature(creature, (creature.fallDist - (FALL_MAX_SAFE_DIST + 1)) * FALL_PER_UNIT_DAMAGE + FALL_BASE_DAMAGE) != -1) {
+                    if (this.damageCreature(creature, (creature.fallDist - (FALL_MAX_SAFE_DIST + 1)) * FALL_PER_UNIT_DAMAGE + FALL_BASE_DAMAGE, tickCtr) != -1) {
                         i--;
                         continue;
                     }
@@ -164,6 +169,8 @@ export class Controller {
 
             const move = this.runCreature(creature, tickCtr);
 
+            creature.lastMoves!.push({ tick: tickCtr, pos: { x: creature.pos.x, y: creature.pos.y }, move });
+
             if (move === null) continue;
 
             switch (move.type) {
@@ -171,15 +178,15 @@ export class Controller {
                 {
                     const leftX = (creature.pos.x + this.world.width - 1) % this.world.width;
 
-                    if (this.world.isNotSolid(leftX, creature.pos.y)) {
-                        if (this.world.isNotSolid(leftX, creature.pos.y - 1)) {
+                    if (!this.world.isSolid(leftX, creature.pos.y)) {
+                        if (!this.world.isSolid(leftX, creature.pos.y - 1)) {
                             creature.pos.x = leftX;
                             creature.pos.y -= 1;
                         } else {
                             creature.pos.x = leftX;
                         }
                     } else {
-                        if (this.world.isNotSolid(creature.pos.x, creature.pos.y + 1) && this.world.isNotSolid(leftX, creature.pos.y + 1)) {
+                        if (!this.world.isSolid(creature.pos.x, creature.pos.y + 1) && !this.world.isSolid(leftX, creature.pos.y + 1)) {
                             creature.pos.x = leftX;
                             creature.pos.y += 1;
                         }
@@ -191,15 +198,15 @@ export class Controller {
                 {
                     const rightX = (creature.pos.x + 1) % this.world.width;
 
-                    if (this.world.isNotSolid(rightX, creature.pos.y)) {
-                        if (this.world.isNotSolid(rightX, creature.pos.y - 1)) {
+                    if (!this.world.isSolid(rightX, creature.pos.y)) {
+                        if (!this.world.isSolid(rightX, creature.pos.y - 1)) {
                             creature.pos.x = rightX;
                             creature.pos.y -= 1;
                         } else {
                             creature.pos.x = rightX;
                         }
                     } else {
-                        if (this.world.isNotSolid(creature.pos.x, creature.pos.y + 1) && this.world.isNotSolid(rightX, creature.pos.y + 1)) {
+                        if (!this.world.isSolid(creature.pos.x, creature.pos.y + 1) && !this.world.isSolid(rightX, creature.pos.y + 1)) {
                             creature.pos.x = rightX;
                             creature.pos.y += 1;
                         }
@@ -212,7 +219,7 @@ export class Controller {
                     const leftX = (creature.pos.x + this.world.width - 1) % this.world.width;
                     const rightX = (creature.pos.x + 1) % this.world.width;
 
-                    if (this.world.isNotSolid(creature.pos.x, creature.pos.y + 1) && this.world.isSolid(leftX, creature.pos.y + 1) && this.world.isSolid(rightX, creature.pos.y + 1)) {
+                    if (!this.world.isSolid(creature.pos.x, creature.pos.y + 1) && this.world.isSolid(leftX, creature.pos.y + 1) && this.world.isSolid(rightX, creature.pos.y + 1)) {
                         creature.pos.y += 1;
                     }
 
@@ -223,7 +230,7 @@ export class Controller {
                     const leftX = (creature.pos.x + this.world.width - 1) % this.world.width;
                     const rightX = (creature.pos.x + 1) % this.world.width;
 
-                    if (this.world.isNotSolid(creature.pos.x, creature.pos.y - 1) && this.world.isSolid(leftX, creature.pos.y - 1) && this.world.isSolid(rightX, creature.pos.y - 1)) {
+                    if (!this.world.isSolid(creature.pos.x, creature.pos.y - 1) && this.world.isSolid(leftX, creature.pos.y) && this.world.isSolid(rightX, creature.pos.y)) {
                         creature.pos.y -= 1;
                     }
 
@@ -276,7 +283,7 @@ export class Controller {
                     if (!isValidTarget(creature, move.pos, this.world)) break;
                     if (!creature.carryingRock) break;
 
-                    if (this.world.isNotSolid(move.pos.x, move.pos.y)) {
+                    if (!this.world.isSolid(move.pos.x, move.pos.y)) {
                         this.world.setCell(move.pos.x, move.pos.y, Cell.Rock);
                         creature.carryingRock = false;
 
@@ -287,7 +294,7 @@ export class Controller {
                             this.world.setCell(move.pos.x, move.pos.y, Cell.Empty);
 
                             for (const victim of crushed) {
-                                const killedIndex = this.damageCreature(creature, ROCK_CRUSH_BASE_DAMAGE);
+                                const killedIndex = this.damageCreature(creature, ROCK_CRUSH_BASE_DAMAGE, tickCtr);
 
                                 if (killedIndex != -1) {
                                     if (killedIndex < i) i--;
@@ -341,7 +348,7 @@ export class Controller {
 
                         if (!isValidTarget(creature, victim.pos, this.world)) break;
 
-                        const killedIndex = this.damageCreature(victim, BITE_DAMAGE);
+                        const killedIndex = this.damageCreature(victim, BITE_DAMAGE, tickCtr);
                         if (killedIndex != -1) {
                             if (killedIndex < i) i--;
                         }
@@ -354,7 +361,7 @@ export class Controller {
 
                         const victim = victims[Math.floor(Math.random() * victims.length)];
 
-                        const killedIndex = this.damageCreature(victim, BITE_DAMAGE);
+                        const killedIndex = this.damageCreature(victim, BITE_DAMAGE, tickCtr);
                         if (killedIndex != -1) {
                             if (killedIndex < i) i--;
                         }
@@ -441,9 +448,9 @@ export class Controller {
                         break;
                     }
                     case Cell.Rock: {
-                        if (this.world.isNotSolid(x, y - 1)) {
+                        if (!this.world.isSolid(x, y - 1)) {
                             this.world.setCell(x, y, Cell.Empty);
-                            this.world.setCell(x, y - 1, this.world.isNotSolid(x, y - 2) || this.world.isFallingRock(x, y - 2) ? Cell.Rock1 : Cell.Rock);
+                            this.world.setCell(x, y - 1, !this.world.isSolid(x, y - 2) || this.world.isFallingRock(x, y - 2) ? Cell.Rock1 : Cell.Rock);
 
                             const crushed = this.creatures.filter(c => c.pos.x == x && c.pos.y == y - 1);
                             if (crushed.length != 0) {
@@ -452,7 +459,7 @@ export class Controller {
                                 this.world.setCell(x, y - 1, Cell.Empty);
 
                                 for (const victim of crushed) {
-                                    if (this.damageCreature(victim, ROCK_CRUSH_BASE_DAMAGE + ROCK_CRUSH_PER_UNIT_DAMAGE) == -1 && !onSolidGround && !victim.falling) {
+                                    if (this.damageCreature(victim, ROCK_CRUSH_BASE_DAMAGE + ROCK_CRUSH_PER_UNIT_DAMAGE, tickCtr) == -1 && !onSolidGround && !victim.falling) {
                                         victim.pos.y -= 1;
                                         victim.falling = true;
                                     }
@@ -472,9 +479,9 @@ export class Controller {
                     case Cell.Rock6:
                     case Cell.Rock7:
                     case Cell.Rock8P: {
-                        if (this.world.isNotSolid(x, y - 1)) {
+                        if (!this.world.isSolid(x, y - 1)) {
                             this.world.setCell(x, y, Cell.Empty);
-                            this.world.setCell(x, y - 1, this.world.isNotSolid(x, y - 2) || this.world.isFallingRock(x, y - 2) ? cell == Cell.Rock8P ? cell : cell + 1 : Cell.Rock);
+                            this.world.setCell(x, y - 1, !this.world.isSolid(x, y - 2) || this.world.isFallingRock(x, y - 2) ? cell == Cell.Rock8P ? cell : cell + 1 : Cell.Rock);
 
                             const crushed = this.creatures.filter(c => c.pos.x == x && c.pos.y == y - 1);
                             if (crushed.length != 0) {
@@ -483,7 +490,7 @@ export class Controller {
                                 this.world.setCell(x, y - 1, Cell.Empty);
 
                                 for (const victim of crushed) {
-                                    if (this.damageCreature(victim, ROCK_CRUSH_BASE_DAMAGE + ROCK_CRUSH_PER_UNIT_DAMAGE * (cell - Cell.Rock + 1)) == -1 && !onSolidGround && !victim.falling) {
+                                    if (this.damageCreature(victim, ROCK_CRUSH_BASE_DAMAGE + ROCK_CRUSH_PER_UNIT_DAMAGE * (cell - Cell.Rock + 1), tickCtr) == -1 && !onSolidGround && !victim.falling) {
                                         victim.pos.y -= 1;
                                         victim.falling = true;
                                     }
@@ -574,12 +581,13 @@ export class Controller {
         return move;
     }
 
-    private damageCreature(creature: Creature, damage: number, fertilize: boolean = false): number {
+    private damageCreature(creature: Creature, damage: number, tickCtr: number, fertilize: boolean = true): number {
         creature.hp -= damage;
 
         if (creature.hp <= 0) {
             const creatureIndex = this.creatures.indexOf(creature);
             this.creatures.splice(creatureIndex, 1);
+            this.deadCreatures.push({ diedTick: tickCtr, creature });
 
             if (fertilize) {
                 this.fertilize(creature.pos.x, creature.pos.y);
@@ -593,11 +601,19 @@ export class Controller {
 
     private fertilize(x: number, y: number) {
         for (let i = 0; i < KILL_FERTILIZE_ROUNDS; i++) {
-            const r = Math.random() * KILL_FERTILIZE_MAX_DIST + Math.SQRT1_2;
+            const r = (Math.random() ** 2) * KILL_FERTILIZE_MAX_DIST;
             const dir = Math.random() * Math.PI * 2;
 
-            const fx = x + r * Math.cos(dir);
-            const fy = y + r * Math.sin(dir);
+            const fx = Math.round(x + r * Math.cos(dir));
+            const fy = Math.round(y + r * Math.sin(dir));
+
+            if (fy < 0) {
+                if (Math.random() < 2/3) {
+                    i--;
+                }
+
+                continue;
+            }
 
             const cell = this.world.getCell(fx, fy);
 
@@ -618,7 +634,7 @@ export class Controller {
                 }
                 case Cell.GrassyDirt: {
                     if (this.world.getCell(fx, fy + 1) == Cell.Empty && Math.random() < Math.sqrt(GRASSY_DIRT_SKY_GROW_TUFTS_ODDS)) {
-                        this.world.setCell(fx, fy, Cell.SmallGrassTufts);
+                        this.world.setCell(fx, fy + 1, Cell.SmallGrassTufts);
                     }
 
                     break;
@@ -631,7 +647,7 @@ export class Controller {
                     break;
                 }
                 case Cell.Dirt: {
-                    if (this.world.isNotSolid(fx, fy + 1) && Math.random() < Math.sqrt(DIRT_SKY_TO_GRASSY_DIRT_ODDS)) {
+                    if (!this.world.isSolid(fx, fy + 1) && Math.random() < Math.sqrt(DIRT_SKY_TO_GRASSY_DIRT_ODDS)) {
                         this.world.setCell(fx, fy, Cell.GrassyDirt);
                     }
 

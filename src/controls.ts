@@ -37,6 +37,11 @@ const bindings: Binding[] = [
         id: "zoom_out",
         keys: ["KeyX"],
         mouseBtns: []
+    },
+    {
+        id: "fast",
+        keys: ["ShiftLeft", "ShiftRight"],
+        mouseBtns: []
     }
 ];
 

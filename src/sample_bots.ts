@@ -1,6 +1,6 @@
 import { biteByCreature, Bot, climbDown, climbUp, dig, dropRock, eat, left, pickUpRock, right } from "./bot_interface";
 import { Creature, Move } from "./controller";
-import { Cell, cellIsNotSolid, cellIsRock, World } from "./world";
+import { Cell, cellIsRock, cellIsSolid, World } from "./world";
 
 export const sample_bots: Bot[] = [
     {
@@ -10,35 +10,21 @@ export const sample_bots: Bot[] = [
             const x = self.pos.x;
             const y = self.pos.y;
 
-            // If it's possible to move right without stepping up/down
-            if (world.isSolid(x + 1, y - 1) && !world.isSolid(x + 1, y)) {
-                return right();
-            }
-
-            // If it's possible to move right by stepping down onto solid ground
-            if (world.isSolid(x + 1, y - 2) && !world.isSolid(x + 1, y)) {
-                return right();
-            }
-
-            // If it's possible to move right by stepping up
-            if (world.isNotSolid(x, y + 1) && world.isNotSolid(x + 1, y + 1)) {
+            // If it's possible to move right
+            if (!world.isSolid(x + 1, y) || !world.isSolid(x, y + 1) && !world.isSolid(x + 1, y + 1)) {
                 return right();
             }
 
             // Otherwise, try to staircase up
             if (world.isSolid(x, y + 1)) {
                 return dig(x, y + 1);
-            } else if (world.isSolid(x + 1, y + 1)) {
-                return dig(x + 1, y + 1);
             } else {
-                // This means it's a hole that's blocking us. Dig down
-
-                return dig(x, y - 1);
+                return dig(x + 1, y + 1);
             }
 
             // Flaws:
             // - Cannot handle rocks, which can't be dug
-            // - Will dig up unnecessarily if a hole is the problem
+            // - Will fall down holes
             // - Will die of starvation
         }
     },
@@ -70,13 +56,20 @@ export const sample_bots: Bot[] = [
     {
         id: "hunter",
         name: "Simple Hunter",
-        run(self: Creature, others: Creature[]): Move {
-            others.sort(o => Math.hypot(o.pos.x - self.pos.x, o.pos.y - self.pos.y));
+        run(self: Creature, others: Creature[], world: World): Move {
+            others.sort((a, b) => Math.hypot(a.pos.x - self.pos.x, a.pos.y - self.pos.y) - Math.hypot(b.pos.x - self.pos.x, b.pos.y - self.pos.y));
             const target = others[0];
 
             // If the target is close, try to bite it
             if (Math.hypot(target.pos.x - self.pos.x, target.pos.y - self.pos.y) < 2) {
                 return biteByCreature(target.id);
+            }
+            // If hungry and on top of grass, eat it
+            if (self.fullness <= 175 && [Cell.SmallGrassTufts, Cell.LargeGrassTufts].includes(world.getCell(self.pos.x, self.pos.y))) {
+                return eat(self.pos.x, self.pos.y);
+            }
+            if (self.fullness <= 175 && world.getCell(self.pos.x, self.pos.y - 1) == Cell.GrassyDirt) {
+                return eat(self.pos.x, self.pos.y - 1);
             }
             // Otherwise, try to move to the target's x position
             if (target.pos.x > self.pos.x) {
@@ -104,24 +97,24 @@ export const sample_bots: Bot[] = [
                 const cellBeneath = world.getCell(self.pos.x, self.pos.y - 1);
 
                 // Look for food
-                for (const offset of [[0, -1], [-1, 1], [1, 1], [-1, 0], [1, 0], [-1, -1], [1, -1]]) {
+                for (const offset of [[0, -1], [-1, 1], [1, 1], [-1, 0], [1, 0]]) {
                     const cell = world.getCell(self.pos.x + offset[0], self.pos.y + offset[1]);
                     if ([Cell.GrassyDirt, Cell.SmallGrassTufts, Cell.LargeGrassTufts, Cell.MossyStone, Cell.MossyChippedStone, Cell.MossyBedrock].includes(cell)) {
                         return eat(self.pos.x + offset[0], self.pos.y + offset[1]);
                     }
                 }
                 // If in a shaft and not at the bottom, go down
-                if (cellIsNotSolid(cellBeneath)) {
+                if (!cellIsSolid(cellBeneath)) {
                     return climbDown();
                 }
                 // Pick up rock if it's in the way
                 if (cellBeneath == Cell.Rock) {
                     // If already carrying a rock, dig a hole off to the side to drop it in
                     if (self.carryingRock) {
-                        if (world.isNotSolid(self.pos.x - 1, self.pos.y)) {
+                        if (!world.isSolid(self.pos.x - 1, self.pos.y)) {
                             return dropRock(self.pos.x - 1, self.pos.y);
                         }
-                        if (world.isNotSolid(self.pos.x + 1, self.pos.y)) {
+                        if (!world.isSolid(self.pos.x + 1, self.pos.y)) {
                             return dropRock(self.pos.x + 1, self.pos.y);
                         }
                         if (world.getCell(self.pos.x - 1, self.pos.y) != Cell.Rock) {
@@ -227,6 +220,119 @@ export const sample_bots: Bot[] = [
             // - Could spend ages going in the opposite direction of just-grown moss
             // - Can be softlocked if dirt is dug near the boundary with stone
             // - Can starve digging initial hole if unlucky
+        }
+    },
+    {
+        id: "rock_dropper",
+        name: "Rock Dropper",
+        run(self: Creature, _others: Creature[], world: World): Move {
+            if (!("dead" in self.ctx)) self.ctx.dead = new Set();
+
+            const { x, y } = self.pos;
+
+            // If hungry, try to eat
+            for (let ox = x - 1; ox <= x + 1; ox++) {
+                for (let oy = y - 1; oy <= y + 1; oy++) {
+                    if ([Cell.SmallGrassTufts, Cell.LargeGrassTufts, Cell.GrassyDirt, Cell.MossyStone, Cell.MossyChippedStone, Cell.MossyBedrock].includes(world.getCell(ox, oy)) && world.isReachableFrom(x, y, ox, oy)) {
+                        return eat(ox, oy);
+                    }
+                }
+            }
+
+            if (!self.carryingRock) {
+                const rocks: [number, number][] = [];
+                for (let rx = x - 10; rx <= x + 10; rx++) {
+                    if (self.ctx.dead.has(rx)) continue;
+
+                    for (let ry = 35; ry <= y; ry++) {
+                        if (world.getCell(rx, ry) == Cell.Rock) {
+                            rocks.push([rx, ry]);
+                        }
+                    }
+                }
+                rocks.sort((a, b) => Math.hypot(a[0] - x, a[1] - y) - Math.hypot(b[0] - x, b[1] - y));
+
+                if (rocks.length != 0) {
+                    const rock = rocks[0];
+
+                    if (rock[1] < y) {
+                        if (world.isSolid(x, y - 1)) {
+                            if (world.getCell(x, y - 1) == Cell.Rock) {
+                                if (!self.ctx.dead.has(x)) {
+                                    return pickUpRock(x, y - 1);
+                                } else {
+                                    if (!world.isSolid(x - 1, y)) return left();
+                                    if (!world.isSolid(x + 1, y)) return right();
+                                    if (world.getCell(x - 1, y) == Cell.Rock && !self.ctx.dead.has(x - 1)) return pickUpRock(x - 1, y);
+                                    if (world.getCell(x + 1, y) == Cell.Rock && !self.ctx.dead.has(x + 1)) return pickUpRock(x + 1, y);
+                                    if (world.getCell(x - 1, y) != Cell.Rock) return dig(x - 1, y);
+                                    if (world.getCell(x + 1, y) != Cell.Rock) return dig(x + 1, y);
+                                }
+                            } else {
+                                return dig(x, y - 1);
+                            }
+                        } else {
+                            return climbDown();
+                        }
+                    } else {
+                        if (rock[0] < x) {
+                            if (world.getCell(x - 1, y) == Cell.Rock) {
+                                return pickUpRock(x - 1, y);
+                            }
+
+                            if (world.isSolid(x - 1, y)) {
+                                return dig(x - 1, y);
+                            }
+
+                            return left();
+                        } else {
+                            if (world.getCell(x + 1, y) == Cell.Rock) {
+                                return pickUpRock(x + 1, y);
+                            }
+
+                            if (world.isSolid(x + 1, y)) {
+                                return dig(x + 1, y);
+                            }
+
+                            return right();
+                        }
+                    }
+                }
+            } else {
+                const topM1 = world.findTopSolidY(x - 1);
+                const top = world.findTopSolidY(x);
+                const topP1 = world.findTopSolidY(x + 1);
+                if (y >= topM1 && y > top && y >= topP1) {
+                    if (topM1 < y - 1) {
+                        self.ctx.dead.add(x - 1);
+                        return dropRock(x - 1, y + 1);
+                    }
+                    if (top < y - 1) {
+                        self.ctx.dead.add(x);
+                        return dropRock(x, y - 1);
+                    }
+                    if (topP1 < y - 1) {
+                        self.ctx.dead.add(x + 1);
+                        return dropRock(x + 1, y + 1);
+                    }
+                }
+            }
+
+            // Can't find a rock, try to go to the surface
+            if (!world.isSolid(x, y + 1) && world.isSolid(x - 1, y + 1) && world.isSolid(x + 1, y + 1)) {
+                return climbUp();
+            }
+
+            let leftSafe = world.isSolid(x - 1, y - 1) || world.isSolid(x - 1, y);
+            let rightSafe = world.isSolid(x + 1, y - 1) || world.isSolid(x + 1, y);
+            let leftPoss = leftSafe && (!world.isSolid(x - 1, y) || !world.isSolid(x - 1, y + 1) && !world.isSolid(x, y + 1));
+            let rightPoss = rightSafe && (!world.isSolid(x + 1, y) || !world.isSolid(x + 1, y + 1) && !world.isSolid(x, y + 1));
+
+            if (leftPoss && !rightPoss) return left();
+            if (rightPoss && !leftPoss) return right();
+            if (leftPoss && rightPoss) return Math.random() < 1 / 2 ? left() : right();
+
+            return world.isSolid(x, y + 1) ? dig(x, y + 1) : dig(x + (Math.random() < 1 / 2 ? -1 : 1), y + 1);
         }
     }
 ];

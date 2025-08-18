@@ -42,11 +42,7 @@ export function cellIsFallingRock(cell: Cell): boolean {
 }
 
 export function cellIsSolid(cell: Cell): boolean {
-    return !cellIsNotSolid(cell);
-}
-
-export function cellIsNotSolid(cell: Cell): boolean {
-    return cell == Cell.Empty || cell == Cell.SmallGrassTufts || cell == Cell.LargeGrassTufts;
+    return !(cell == Cell.Empty || cell == Cell.SmallGrassTufts || cell == Cell.LargeGrassTufts);
 }
 
 export enum BgCell {
@@ -166,10 +162,6 @@ export class World {
         return cellIsSolid(this.getCell(x, y));
     }
 
-    public isNotSolid(x: number, y: number): boolean {
-        return cellIsNotSolid(this.getCell(x, y));
-    }
-
     public isBorderingEmpty(x: number, y: number): boolean {
         return (
             this.getCell(x - 1, y) == Cell.Empty ||
@@ -177,6 +169,35 @@ export class World {
             this.getCell(x + 1, y) == Cell.Empty ||
             this.getCell(x, y + 1) == Cell.Empty
         );
+    }
+
+    private isXAdjacentUnchecked(x1: number, x2: number): boolean {
+        return Math.abs(x1 - x2) == 1 || x1 == 0 && x2 == this.width - 1 || x1 == this.width - 1 && x2 == 0;
+    }
+
+    public isXAdjacent(x1: number, x2: number): boolean {
+        if (x1 < 0 || x1 >= this.width) x1 = (x1 % this.width + this.width) % this.width;
+        if (x2 < 0 || x2 >= this.width) x2 = (x2 % this.width + this.width) % this.width;
+
+        return this.isXAdjacentUnchecked(x1, x2);
+    }
+
+    public isReachableFrom(x1: number, y1: number, x2: number, y2: number): boolean {
+        if (x1 < 0 || x1 >= this.width) x1 = (x1 % this.width + this.width) % this.width;
+        if (x2 < 0 || x2 >= this.width) x2 = (x2 % this.width + this.width) % this.width;
+
+        if (x1 == x2 && y1 == y2) return true;
+        if (x1 == x2 && (Math.abs(y1 - y2) == 1)) return true;
+        if (this.isXAdjacentUnchecked(x1, x2) && y1 == y2) return true;
+
+        if (!this.isSolid(x1, y2) || !this.isSolid(x2, y1)) {
+            if ((x1 == x2 - 1 || x1 == this.width - 1 && x2 == 0) && y1 == y2 - 1) return true;
+            if ((x1 == x2 - 1 || x1 == this.width - 1 && x2 == 0) && y1 == y2 + 1) return true;
+            if ((x1 == x2 + 1 || x1 == 0 && x2 == this.width - 1) && y1 == y2 - 1) return true;
+            if ((x1 == x2 + 1 || x1 == 0 && x2 == this.width - 1) && y1 == y2 + 1) return true;
+        }
+
+        return false;
     }
 
     public getGrid(): Cell[][] {
@@ -189,7 +210,7 @@ export class World {
 
     public findTopSolidY(x: number): number {
         let y = this.grid.length;
-        while (this.isNotSolid(x, y)) y--;
+        while (!this.isSolid(x, y)) y--;
         return y;
     }
 

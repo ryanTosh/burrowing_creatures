@@ -6,13 +6,38 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
-        <link rel="stylesheet" href="styles.css">
+        <link rel="stylesheet" href="styles/fonts.css">
+        <link rel="stylesheet" href="styles/styles.css">
     </head>
 
     <body>
-        <canvas id="display"></canvas>
+        <div id="cont">
+            <div id="display_cont">
+                <canvas id="display"></canvas>
+            </div>
 
-        <div id="sidebar">
+            <div id="sidebar">
+                <div id="controls">
+                    <h2>Controls</h2>
+                </div>
+
+                <div id="creatures">
+                    <h2>Creatures on-screen</h2>
+
+                    <div id="creatures_on_screen">
+                    </div>
+
+                    <h2>Other creatures</h2>
+
+                    <div id="creatures_other">
+                    </div>
+
+                    <h2>Dead</h2>
+                    
+                    <div id="creatures_dead">
+                    </div>
+                </div>
+            </div>
         </div>
 
         <script type="module" src="src/index.ts"></script>

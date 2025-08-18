@@ -19,8 +19,8 @@ const world = World.buildWorld(worldSize, {
     grassTuftsOdds: 0.0625
 });
 const controls = new Controls(canvas);
-const graphics = new Graphics(canvas, window.innerWidth, window.innerHeight, world, controls);
 const controller = new Controller(world, sample_bots, 4);
+const graphics = new Graphics(canvas, Math.floor(window.innerWidth * (1 - 0.0625) - 120 - 180), window.innerHeight, controller, controls);
 
 await graphics.loadImages();
 graphics.draw();
@@ -30,4 +30,8 @@ let tickCtr = 0;
 
 setInterval(() => {
     controller.tick(tickCtr++);
-}, 100);
+}, 500);
+
+window.addEventListener("resize", () => {
+    graphics.resize(Math.floor(window.innerWidth * (1 - 0.0625) - 120 - 180), window.innerHeight);
+});
