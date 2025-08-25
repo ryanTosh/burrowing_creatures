@@ -3,8 +3,7 @@ import { World } from "./world";
 
 export interface Bot {
     id: string;
-    name: string;
-    run: (self: Creature, others: Creature[], world: World, tick: number) => Move;
+    run: (self: Creature, others: Creature[], world: World, tickCtr: number) => Move;
 }
 
 export function left(): Move {

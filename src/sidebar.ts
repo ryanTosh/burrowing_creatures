@@ -1,4 +1,5 @@
 import { Controller, Creature } from "./controller";
+import { Graphics } from "./graphics";
 
 interface CreatureRecord {
     creature: Creature;
@@ -6,6 +7,8 @@ interface CreatureRecord {
 }
 
 export class SidebarMgr {
+    private graphics: Graphics;
+
     private controller: Controller | null = null;
 
     private width: number | null = null;
@@ -15,7 +18,9 @@ export class SidebarMgr {
     private creaturesOtherNode: HTMLDivElement;
     private creaturesDeadNode: HTMLDivElement;
 
-    constructor() {
+    constructor(graphics: Graphics) {
+        this.graphics = graphics;
+
         const creaturesOnScreenNode = document.getElementById("creatures_on_screen");
         const creaturesOtherNode = document.getElementById("creatures_other");
         const creaturesDeadNode = document.getElementById("creatures_dead");
@@ -29,14 +34,23 @@ export class SidebarMgr {
         this.creaturesDeadNode = creaturesDeadNode as HTMLDivElement;
     }
 
-    private buildProp(prop: string, conts: string | number | boolean): HTMLLIElement {
+    private buildProp(prop: string, conts: string | number | boolean, click?: () => void): HTMLLIElement {
         const li = document.createElement("li");
         li.appendChild(document.createTextNode(prop + ": "));
 
-        const span = document.createElement("span");
-        span.className = "prop_" + prop;
-        span.textContent = conts.toString();
-        li.appendChild(span);
+        if (click === undefined) {
+            const contsNode = document.createElement("span");
+            contsNode.className = "prop_" + prop;
+            contsNode.textContent = conts.toString();
+            li.appendChild(contsNode);
+        } else {
+            const contsNode = document.createElement("a");
+            contsNode.className = "prop_" + prop;
+            contsNode.textContent = conts.toString();
+            contsNode.href = "javascript:void(0)";
+            contsNode.addEventListener("click", click);
+            li.appendChild(contsNode);
+        }
 
         return li;
     }
@@ -109,7 +123,7 @@ export class SidebarMgr {
         node.appendChild(details);
 
         const summary = document.createElement("summary");
-        summary.textContent = creature.id + ": " + creature.bot!.name;
+        summary.textContent = creature.id + ": " + creature.bot!.id;
         details.appendChild(summary);
 
         const other = document.createElement("div");
@@ -117,14 +131,27 @@ export class SidebarMgr {
 
         const props = document.createElement("ul");
         props.appendChild(this.buildProp("id", creature.id));
-        props.appendChild(this.buildProp("pos", "(" + creature.pos.x + ", " + creature.pos.y + ")"));
+        props.appendChild(this.buildProp("pos", "(" + creature.pos.x + ", " + creature.pos.y + ")", () => { this.graphics.setPos(creature.pos.x + 0.5, creature.pos.y - 0.5) }));
         props.appendChild(this.buildProp("hp", creature.hp));
         props.appendChild(this.buildProp("fullness", creature.fullness));
         props.appendChild(this.buildProp("falling", creature.falling));
         props.appendChild(this.buildProp("fallDist", creature.fallDist));
         props.appendChild(this.buildProp("carryingRock", creature.carryingRock));
-        props.appendChild(this.buildProp("ctx", "{ ... }"));
         other.appendChild(props);
+
+        const ctxH = document.createElement("h4");
+        ctxH.textContent = "Context:";
+        other.appendChild(ctxH);
+
+        const ctxUl = document.createElement("ul");
+        const ctx = document.createElement("li");
+        ctx.className = "ctx";
+        ctx.textContent = JSON.stringify(creature.ctx, null, 2);
+        ctx.addEventListener("click", () => {
+            console.log(creature.ctx);
+        });
+        ctxUl.appendChild(ctx);
+        other.appendChild(ctxUl);
 
         const lastMovesH = document.createElement("h4");
         lastMovesH.className = "lastMovesH";
@@ -152,6 +179,10 @@ export class SidebarMgr {
                 node
             };
         }
+
+        while (this.creaturesOnScreenNode.firstChild !== null) this.creaturesOnScreenNode.removeChild(this.creaturesOnScreenNode.firstChild);
+        while (this.creaturesOtherNode.firstChild !== null) this.creaturesOtherNode.removeChild(this.creaturesOtherNode.firstChild);
+        while (this.creaturesDeadNode.firstChild !== null) this.creaturesDeadNode.removeChild(this.creaturesDeadNode.firstChild);
     }
 
     private insertCreatureNode(record: CreatureRecord, parent: HTMLDivElement) {
@@ -185,6 +216,8 @@ export class SidebarMgr {
         node.getElementsByClassName("prop_falling")[0].textContent = creature.falling.toString();
         node.getElementsByClassName("prop_fallDist")[0].textContent = creature.fallDist.toString();
         node.getElementsByClassName("prop_carryingRock")[0].textContent = creature.carryingRock.toString();
+
+        node.getElementsByClassName("ctx")[0].textContent = JSON.stringify(creature.ctx, null, 2);
 
         for (const lastMoves of node.getElementsByClassName("lastMoves")) lastMoves.parentNode!.removeChild(lastMoves);
         const lastMovesH = node.getElementsByClassName("lastMovesH")[0];

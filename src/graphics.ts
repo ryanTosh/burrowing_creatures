@@ -20,6 +20,8 @@ export class Graphics {
     private controller: Controller;
     private controls: Controls;
 
+    private spectateBotId: string | null = null;
+
     private sidebar: SidebarMgr;
 
     private creatureImg?: HTMLImageElement;
@@ -38,9 +40,12 @@ export class Graphics {
 
     private x: number;
     private y: number;
+    private zoomCtlCellSize: number;
     private cellSize: number;
 
     private lastTime?: number;
+
+    private frameTimes: number[] = [];
 
     constructor(canvas: HTMLCanvasElement, width: number, height: number, controller: Controller, controls: Controls) {
         this.canvas = canvas;
@@ -56,11 +61,11 @@ export class Graphics {
         this.controller = controller;
         this.controls = controls;
 
-        this.sidebar = new SidebarMgr();
+        this.sidebar = new SidebarMgr(this);
 
         this.x = 0;
         this.y = 80;
-        this.cellSize = Math.ceil(this.width / 40 / 7) * 7;
+        this.zoomCtlCellSize = this.cellSize = Math.ceil(this.width / 40 / 7) * 7;
 
         this.sidebar.setController(this.controller);
         this.updateSidebar();
@@ -72,6 +77,22 @@ export class Graphics {
 
         this.canvas.width = this.width;
         this.canvas.height = this.height;
+    }
+
+    public setController(controller: Controller) {
+        this.controller = controller;
+        this.sidebar.setController(controller);
+    }
+
+    public setSpectateBotId(spectateBotId: string | null) {
+        this.spectateBotId = spectateBotId;
+    }
+
+    public setPos(x: number, y: number) {
+        if (this.spectateBotId !== null && this.controller.getCreatures().some(c => c.bot!.id == this.spectateBotId)) return;
+
+        this.x = x;
+        this.y = y;
     }
 
     private updateSidebar() {
@@ -137,24 +158,68 @@ export class Graphics {
     public startFrames() {
         this.frame(undefined);
 
-        this.controls.onBindNowDown("zoom_in", () => {
-            this.cellSize += 7;
-        });
-        this.controls.onBindNowDown("zoom_out", () => {
-            if (this.cellSize > 7) this.cellSize -= 7;
-        });
+        if (!window.superHot) {
+            this.controls.onBindDown("zoom_in", () => {
+                this.zoomCtlCellSize *= 1.1;
+
+                const rounded = Math.round(this.zoomCtlCellSize);
+
+                if (rounded == this.cellSize) {
+                    this.zoomCtlCellSize = this.cellSize += 1;
+                } else {
+                    this.cellSize = rounded;
+                }
+            });
+            this.controls.onBindDown("zoom_out", () => {
+                if (this.cellSize > 7) {
+                    this.zoomCtlCellSize /= 1.1;
+
+                    const rounded = Math.round(this.zoomCtlCellSize);
+
+                    if (rounded == this.cellSize) {
+                        this.zoomCtlCellSize = this.cellSize -= 1;
+                    } else {
+                        this.cellSize = rounded;
+                    }
+                }
+            });
+        }
     }
 
     private frame(time: number | undefined) {
         const diff = time === undefined || this.lastTime === undefined ? 0 : time - this.lastTime;
         this.lastTime = time;
 
-        const speed = diff / this.cellSize / 2 * (this.controls.isBindDown("fast") ? 2 : 1);
+        if (window.superHot) {
+            const player = this.controller.getCreatures().find(c => c.id == 0);
 
-        if (this.controls.isBindDown("up")) this.y += speed;
-        if (this.controls.isBindDown("down")) this.y -= speed;
-        if (this.controls.isBindDown("left")) this.x -= speed;
-        if (this.controls.isBindDown("right")) this.x += speed;
+            if (player !== undefined) {
+                this.x = player.pos.x + 0.5;
+                this.y = player.pos.y - 0.5;
+            }
+        } else {
+            let moveControls = true;
+            if (this.spectateBotId !== null) {
+                const spectateCreature = this.controller.getCreatures().find(c => c.bot!.id == this.spectateBotId);
+
+                if (spectateCreature) {
+                    moveControls = false;
+
+                    this.x = spectateCreature.pos.x + 0.5;
+                    this.y = spectateCreature.pos.y - 0.5;
+                }
+            }
+
+            if (moveControls) {
+                const speed = diff / this.cellSize / 2 * (this.controls.isBindDown("fast") ? 2 : 1);
+
+                if (this.controls.isBindDown("up")) this.y += speed;
+                if (this.controls.isBindDown("down")) this.y -= speed;
+                if (this.controls.isBindDown("left")) this.x -= speed;
+                if (this.controls.isBindDown("right")) this.x += speed;
+            }
+        }
+        
         this.draw();
         this.updateSidebar();
 
@@ -171,6 +236,8 @@ export class Graphics {
     }
 
     public draw() {
+        const startTime = performance.now();
+        
         const world = this.controller.getWorld();
         const creatures = this.controller.getCreatures();
 
@@ -222,10 +289,25 @@ export class Graphics {
             }
         }
 
+        const crosshairSize = this.width / 256;
+
+        this.ctx.strokeStyle = "#000000";
+        this.ctx.beginPath();
+        this.ctx.moveTo(Math.floor(this.width / 2) - crosshairSize, Math.floor(this.height / 2));
+        this.ctx.lineTo(Math.floor(this.width / 2) + crosshairSize, Math.floor(this.height / 2));
+        this.ctx.stroke();
+        this.ctx.beginPath();
+        this.ctx.moveTo(Math.floor(this.width / 2), Math.floor(this.height / 2) - crosshairSize);
+        this.ctx.lineTo(Math.floor(this.width / 2), Math.floor(this.height / 2) + crosshairSize);
+        this.ctx.stroke();
+
         this.ctx.font = "500 12px 'Roboto Mono', monospace";
         this.ctx.textAlign = "center";
         this.ctx.textBaseline = "bottom";
 
+        let filledBoxes: [number, number, number, number][] = [];
+
+        tags.sort((a, b) => a.y - b.y);
         for (const tag of tags) {
             const measures = tag.strs.map(s => this.ctx.measureText(s));
 
@@ -233,14 +315,68 @@ export class Graphics {
             const ascent = measures.slice(0, -1).reduce((h, m) => h + m.fontBoundingBoxAscent + m.fontBoundingBoxDescent, measures[measures.length - 1].fontBoundingBoxAscent);
             const descent = measures[measures.length - 1].fontBoundingBoxDescent;
 
+            const xMin = tag.x - width / 2 - 2;
+            let yMin = tag.y - ascent;
+
+            for (let i = 0; i < filledBoxes.length; i++) {
+                let collidingBox = filledBoxes.find(b => b[0] < xMin + width + 4 && xMin < b[0] + b[2] && b[1] < yMin + ascent + descent && yMin < b[1] + b[3]);
+
+                if (collidingBox === undefined) break;
+
+                yMin = collidingBox[1] - ascent - descent - 2;
+            }
+
             this.ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
-            this.ctx.fillRect(tag.x - width / 2 - 2, tag.y - ascent, width + 4, ascent + descent);
+            this.ctx.fillRect(xMin, yMin, width + 4, ascent + descent);
+            filledBoxes.push([xMin, yMin, width + 4, ascent + descent]);
             this.ctx.fillStyle = "#ffffff";
-            let y = tag.y;
+            let y = yMin + ascent;
             for (let i = tag.strs.length - 1; i >= 0; i--) {
                 this.ctx.fillText(tag.strs[i], tag.x, y);
                 if (i != 0) {
                     y -= measures[i].fontBoundingBoxAscent + measures[i - 1].fontBoundingBoxDescent;
+                }
+            }
+        }
+
+        const frameTime = performance.now() - startTime;
+
+        this.frameTimes.push(frameTime);
+
+        if (this.frameTimes.length > 1000) this.frameTimes.shift();
+
+        this.ctx.textAlign = "left";
+        this.ctx.textBaseline = "top";
+
+        const tickTimes = this.controller.getTickTimes();
+
+        const dbg: string[] = [
+            "Tick: " + this.controller.getTickCtr(), // MOVE THIS TO CONTROLS
+            "",
+            "World width: " + world.width,
+            "Crosshair pos: (" + Math.floor((this.x % world.width + world.width) % world.width) + ", " + Math.ceil(this.y) + ")",
+            "Pointing pos: " + (this.controls.mouseOffset === undefined ? "-" : "(" + Math.floor(((this.x + (this.controls.mouseOffset[0] - this.width / 2) / this.cellSize) % world.width + world.width) % world.width) + ", " + Math.ceil(this.y - (this.controls.mouseOffset[1] - this.height / 2) / this.cellSize) + ")"),
+            "",
+            "Frame time: " + Math.floor(frameTime) + "ms (" + (this.frameTimes.slice(-60).reduce((s, t) => s + t, 0) / Math.min(this.frameTimes.length, 60)).toFixed(1) + "ms rolling, " + this.frameTimes.reduce((x, t) => Math.max(x, t), 0).toFixed(1) + "ms high)",
+            "Tick time: " + Math.floor(tickTimes[tickTimes.length - 1]) + "ms (" + (tickTimes.slice(-20).reduce((s, t) => s + t, 0) / Math.min(tickTimes.length, 20)).toFixed(1) + "ms rolling, " + tickTimes.slice(-100).reduce((x, t) => Math.max(x, t), 0).toFixed(1) + "ms high)",
+        ];
+
+        {
+            const dbgStrs = dbg.join("\n").split("\n");
+
+            const measures = dbgStrs.map(s => this.ctx.measureText(s));
+
+            const width = measures.reduce((w, m) => Math.max(w, m.width), 0);
+            const height = measures.reduce((h, m) => h + m.fontBoundingBoxAscent + m.fontBoundingBoxDescent, 0);
+
+            this.ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+            this.ctx.fillRect(8, 8, width + 16, height + 12);
+            this.ctx.fillStyle = "#ffffff";
+            let y = 16;
+            for (let i = 0; i < dbgStrs.length; i++) {
+                this.ctx.fillText(dbgStrs[i], 16, y);
+                if (i != dbgStrs.length - 1) {
+                    y += measures[i].fontBoundingBoxDescent + measures[i + 1].fontBoundingBoxAscent;
                 }
             }
         }

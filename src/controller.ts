@@ -68,22 +68,51 @@ const BEDROCK_TO_MOSSY_ODDS = 1 / 2048;
 const KILL_FERTILIZE_ROUNDS = 1024;
 const KILL_FERTILIZE_MAX_DIST = 8;
 
+const HUNGER_INCREASE_BASE = 0;
+const HUNGER_INCREASE_TICK_INT = 500;
+
+const WIDTH_PER_BOT = 10;
+const WORLD_SETTINGS = {
+    dirtHeight: 40,
+    stoneHeight: 40,
+    dirtHeightRoughness: 1,
+    stoneHeightRoughness: 4,
+
+    rockOdds: 0.03125,
+    noGrassOdds: 0.125,
+    grassTuftsOdds: 0.0625
+};
+
+type DamageSource = { type: "hunger" | "falling" | "rock" } | { type: "bit", byId: number };
+
 export class Controller {
     private world: World;
     private creatures: Creature[];
     private deadCreatures: ({ diedTick: number; creature: Creature })[] = [];
 
-    constructor(world: World, bots: Bot[], copies: number) {
+    private tickCtr: number = 0;
+
+    private tickTimes: number[] = [];
+
+    private debug: boolean;
+
+    private constructor(world: World, creatures: Creature[], debug: boolean = false) {
         this.world = world;
-        this.creatures = new Array(bots.length * copies);
+        this.creatures = creatures;
+        this.debug = debug;
+    }
+
+    public static buildController(bots: Bot[], copies: number, debug: boolean = false) {
+        const world = World.buildWorld(bots.length * copies * WIDTH_PER_BOT, WORLD_SETTINGS);
+        const creatures = new Array(bots.length * copies);
 
         const ids = [...new Array(bots.length * copies).keys()];
 
         for (let i = 0; i < copies; i++) {
             for (let j = 0; j < bots.length; j++) {
-                this.creatures[i * bots.length + j] = {
+                creatures[i * bots.length + j] = {
                     id: ids.splice(Math.floor(Math.random() * ids.length), 1)[0],
-                    pos: this.findCreatureSpawnPos(),
+                    pos: this.findCreatureSpawnPos(world, creatures),
                     hp: SPAWN_HIT_POINTS,
                     fullness: SPAWN_FULLNESS,
                     fallDist: 0,
@@ -96,7 +125,55 @@ export class Controller {
             }
         }
 
-        this.creatures.sort((x, y) => x.id - y.id);
+        creatures.sort((x, y) => x.id - y.id);
+
+        return new Controller(world, creatures, debug);
+    }
+
+    public static buildSuperHotController(moveBox: { move: Move | null }, bots: Bot[], copies: number, debug: boolean = false) {
+        const world = World.buildWorld((bots.length * copies + 1) * WIDTH_PER_BOT, WORLD_SETTINGS);
+        const creatures = new Array(bots.length * copies + 1);
+
+        const ids = [...new Array(bots.length * copies)].map((_, i) => i + 1);
+
+        creatures[0] = {
+            id: 0,
+            pos: this.findCreatureSpawnPos(world, creatures),
+            hp: SPAWN_HIT_POINTS,
+            fullness: SPAWN_FULLNESS,
+            fallDist: 0,
+            falling: false,
+            carryingRock: false,
+            bot: {
+                id: "__player__",
+                run() {
+                    return moveBox.move;
+                }
+            },
+            ctx: {},
+            lastMoves: []
+        };
+
+        for (let i = 0; i < copies; i++) {
+            for (let j = 0; j < bots.length; j++) {
+                creatures[i * bots.length + j + 1] = {
+                    id: ids.splice(Math.floor(Math.random() * ids.length), 1)[0],
+                    pos: this.findCreatureSpawnPos(world, creatures),
+                    hp: SPAWN_HIT_POINTS,
+                    fullness: SPAWN_FULLNESS,
+                    fallDist: 0,
+                    falling: false,
+                    carryingRock: false,
+                    bot: bots[j],
+                    ctx: {},
+                    lastMoves: []
+                };
+            }
+        }
+
+        creatures.sort((x, y) => x.id - y.id);
+
+        return new Controller(world, creatures, debug);
     }
 
     public getWorld(): World {
@@ -111,40 +188,55 @@ export class Controller {
         return this.deadCreatures;
     }
 
-    private findCreatureSpawnPos() {
-        const width = this.world.width;
+    public getTickCtr(): number {
+        return this.tickCtr;
+    }
 
-        if (this.creatures.length > width * 2/3) {
+    public getTickTimes(): number[] {
+        return this.tickTimes;
+    }
+
+    private static findCreatureSpawnPos(world: World, creatures: Creature[]) {
+        const width = world.width;
+
+        if (creatures.length > width * 2/3) {
             const x = Math.floor(Math.random() * width);
-            const y = this.world.findTopSolidY(x) + 1;
+            const y = world.findTopSolidY(x) + 1;
             return { x, y };
-        } else if (this.creatures.length > width * 1 / 6) {
+        } else if (creatures.length > width * 1 / 6) {
             let x: number;
             do {
                 x = Math.floor(Math.random() * width);
-            } while (this.creatures.some(c => c.pos.x == x));
-            const y = this.world.findTopSolidY(x) + 1;
+            } while (creatures.some(c => c.pos.x == x));
+            const y = world.findTopSolidY(x) + 1;
             return { x, y };
         } else {
             let x: number;
             do {
                 x = Math.floor(Math.random() * width);
-            } while (this.creatures.some(c => Math.abs(c.pos.x - x) < 2));
-            const y = this.world.findTopSolidY(x) + 1;
+            } while (creatures.some(c => Math.abs(c.pos.x - x) < 2));
+            const y = world.findTopSolidY(x) + 1;
             return { x, y };
         }
     }
 
-    public tick(tickCtr: number) {
-        for (let i = 0; i < this.creatures.length; i++) {
+    public tick() {
+        const startTime = performance.now();
+
+        const hungerCountFrac = 1.1 ** Math.floor(Math.max(this.tickCtr - HUNGER_INCREASE_BASE, 0) / HUNGER_INCREASE_TICK_INT);
+        const hungerCount = Math.floor(hungerCountFrac) + (Math.random() < hungerCountFrac - Math.floor(hungerCountFrac) ? 1 : 0);
+
+        creatures: for (let i = 0; i < this.creatures.length; i++) {
             const creature = this.creatures[i];
 
-            if (creature.fullness > 0) {
-                creature.fullness -= FULLNESS_LOSS_PER_TICK;
-            } else {
-                if (this.damageCreature(creature, FULLNESS_LOSS_PER_TICK, tickCtr, false) != -1) {
-                    i--;
-                    continue;
+            for (let j = 0; j < hungerCount; j++) {
+                if (creature.fullness > 0) {
+                    creature.fullness -= FULLNESS_LOSS_PER_TICK;
+                } else {
+                    if (this.damageCreature(creature, FULLNESS_LOSS_PER_TICK, { type: "hunger" }) != -1) {
+                        i--;
+                        continue creatures;
+                    }
                 }
             }
 
@@ -157,7 +249,7 @@ export class Controller {
                 }
             } else if (creature.falling) {
                 if (creature.fallDist > FALL_MAX_SAFE_DIST) {
-                    if (this.damageCreature(creature, (creature.fallDist - (FALL_MAX_SAFE_DIST + 1)) * FALL_PER_UNIT_DAMAGE + FALL_BASE_DAMAGE, tickCtr) != -1) {
+                    if (this.damageCreature(creature, (creature.fallDist - (FALL_MAX_SAFE_DIST + 1)) * FALL_PER_UNIT_DAMAGE + FALL_BASE_DAMAGE, { type: "falling" }) != -1) {
                         i--;
                         continue;
                     }
@@ -167,77 +259,54 @@ export class Controller {
                 creature.fallDist = 0;
             }
 
-            const move = this.runCreature(creature, tickCtr);
+            const move = this.runCreature(creature);
 
-            creature.lastMoves!.push({ tick: tickCtr, pos: { x: creature.pos.x, y: creature.pos.y }, move });
+            creature.lastMoves!.push({ tick: this.tickCtr, pos: { x: creature.pos.x, y: creature.pos.y }, move });
 
             if (move === null) continue;
 
             switch (move.type) {
-                case "left":
-                {
-                    const leftX = (creature.pos.x + this.world.width - 1) % this.world.width;
+                case "left": {
+                    const simLeft = this.world.simulateLeft(creature.pos.x, creature.pos.y);
 
-                    if (!this.world.isSolid(leftX, creature.pos.y)) {
-                        if (!this.world.isSolid(leftX, creature.pos.y - 1)) {
-                            creature.pos.x = leftX;
-                            creature.pos.y -= 1;
-                        } else {
-                            creature.pos.x = leftX;
-                        }
-                    } else {
-                        if (!this.world.isSolid(creature.pos.x, creature.pos.y + 1) && !this.world.isSolid(leftX, creature.pos.y + 1)) {
-                            creature.pos.x = leftX;
-                            creature.pos.y += 1;
-                        }
+                    if (simLeft !== null) {
+                        creature.pos.x = simLeft.x;
+                        creature.pos.y = simLeft.y;
                     }
 
                     break;
                 }
-                case "right":
-                {
-                    const rightX = (creature.pos.x + 1) % this.world.width;
+                case "right": {
+                    const simRight = this.world.simulateRight(creature.pos.x, creature.pos.y);
 
-                    if (!this.world.isSolid(rightX, creature.pos.y)) {
-                        if (!this.world.isSolid(rightX, creature.pos.y - 1)) {
-                            creature.pos.x = rightX;
-                            creature.pos.y -= 1;
-                        } else {
-                            creature.pos.x = rightX;
-                        }
-                    } else {
-                        if (!this.world.isSolid(creature.pos.x, creature.pos.y + 1) && !this.world.isSolid(rightX, creature.pos.y + 1)) {
-                            creature.pos.x = rightX;
-                            creature.pos.y += 1;
-                        }
+                    if (simRight !== null) {
+                        creature.pos.x = simRight.x;
+                        creature.pos.y = simRight.y;
                     }
 
                     break;
                 }
-                case "climb_up":
-                {
-                    const leftX = (creature.pos.x + this.world.width - 1) % this.world.width;
-                    const rightX = (creature.pos.x + 1) % this.world.width;
+                case "climb_up": {
+                    const simClimbUp = this.world.simulateClimbUp(creature.pos.x, creature.pos.y);
 
-                    if (!this.world.isSolid(creature.pos.x, creature.pos.y + 1) && this.world.isSolid(leftX, creature.pos.y + 1) && this.world.isSolid(rightX, creature.pos.y + 1)) {
-                        creature.pos.y += 1;
+                    if (simClimbUp !== null) {
+                        creature.pos.x = simClimbUp.x;
+                        creature.pos.y = simClimbUp.y;
                     }
 
                     break;
                 }
-                case "climb_down":
-                {
-                    const leftX = (creature.pos.x + this.world.width - 1) % this.world.width;
-                    const rightX = (creature.pos.x + 1) % this.world.width;
+                case "climb_down": {
+                    const simClimbDown = this.world.simulateClimbDown(creature.pos.x, creature.pos.y);
 
-                    if (!this.world.isSolid(creature.pos.x, creature.pos.y - 1) && this.world.isSolid(leftX, creature.pos.y) && this.world.isSolid(rightX, creature.pos.y)) {
-                        creature.pos.y -= 1;
+                    if (simClimbDown !== null) {
+                        creature.pos.x = simClimbDown.x;
+                        creature.pos.y = simClimbDown.y;
                     }
 
                     break;
                 }
-                case "dig":
-                {
+                case "dig": {
                     if (!isValidTarget(creature, move.pos, this.world)) break;
 
                     const cell = this.world.getCell(move.pos.x, move.pos.y);
@@ -294,10 +363,10 @@ export class Controller {
                             this.world.setCell(move.pos.x, move.pos.y, Cell.Empty);
 
                             for (const victim of crushed) {
-                                const killedIndex = this.damageCreature(creature, ROCK_CRUSH_BASE_DAMAGE, tickCtr);
+                                const killedIndex = this.damageCreature(creature, ROCK_CRUSH_BASE_DAMAGE, { type: "rock" });
 
                                 if (killedIndex != -1) {
-                                    if (killedIndex < i) i--;
+                                    if (killedIndex <= i) i--;
                                 } else if (!onSolidGround && !victim.falling) {
                                     victim.pos.y -= 1;
                                     victim.falling = true;
@@ -348,9 +417,9 @@ export class Controller {
 
                         if (!isValidTarget(creature, victim.pos, this.world)) break;
 
-                        const killedIndex = this.damageCreature(victim, BITE_DAMAGE, tickCtr);
+                        const killedIndex = this.damageCreature(victim, BITE_DAMAGE, { type: "bit", byId: creature.id });
                         if (killedIndex != -1) {
-                            if (killedIndex < i) i--;
+                            if (killedIndex <= i) i--;
                         }
                     } else if ("pos" in move) {
                         if (!isValidTarget(creature, move.pos, this.world)) break;
@@ -361,9 +430,9 @@ export class Controller {
 
                         const victim = victims[Math.floor(Math.random() * victims.length)];
 
-                        const killedIndex = this.damageCreature(victim, BITE_DAMAGE, tickCtr);
+                        const killedIndex = this.damageCreature(victim, BITE_DAMAGE, { type: "bit", byId: creature.id });
                         if (killedIndex != -1) {
-                            if (killedIndex < i) i--;
+                            if (killedIndex <= i) i--;
                         }
                     }
 
@@ -459,7 +528,7 @@ export class Controller {
                                 this.world.setCell(x, y - 1, Cell.Empty);
 
                                 for (const victim of crushed) {
-                                    if (this.damageCreature(victim, ROCK_CRUSH_BASE_DAMAGE + ROCK_CRUSH_PER_UNIT_DAMAGE, tickCtr) == -1 && !onSolidGround && !victim.falling) {
+                                    if (this.damageCreature(victim, ROCK_CRUSH_BASE_DAMAGE + ROCK_CRUSH_PER_UNIT_DAMAGE, { type: "rock" }) == -1 && !onSolidGround && !victim.falling) {
                                         victim.pos.y -= 1;
                                         victim.falling = true;
                                     }
@@ -490,7 +559,7 @@ export class Controller {
                                 this.world.setCell(x, y - 1, Cell.Empty);
 
                                 for (const victim of crushed) {
-                                    if (this.damageCreature(victim, ROCK_CRUSH_BASE_DAMAGE + ROCK_CRUSH_PER_UNIT_DAMAGE * (cell - Cell.Rock + 1), tickCtr) == -1 && !onSolidGround && !victim.falling) {
+                                    if (this.damageCreature(victim, ROCK_CRUSH_BASE_DAMAGE + ROCK_CRUSH_PER_UNIT_DAMAGE * (cell - Cell.Rock + 1), { type: "rock" }) == -1 && !onSolidGround && !victim.falling) {
                                         victim.pos.y -= 1;
                                         victim.falling = true;
                                     }
@@ -529,9 +598,12 @@ export class Controller {
                 }
             }
         }
+
+        this.tickCtr++;
+        this.tickTimes.push(performance.now() - startTime);
     }
 
-    private runCreature(creature: Creature, tickCtr: number): Move {
+    private runCreature(creature: Creature): Move {
         const self = { ...creature };
         delete self.bot;
         const others = this.creatures.filter(c => c != creature).map(c => {
@@ -544,7 +616,7 @@ export class Controller {
         let move;
 
         try {
-            move = creature.bot!.run(self, others, this.world.clone(), tickCtr);
+            move = creature.bot!.run(self, others, this.world.clone(), this.tickCtr);
 
             if (move !== null) {
                 if (move === undefined) throw new Error("Invalid move: `undefined`");
@@ -581,15 +653,36 @@ export class Controller {
         return move;
     }
 
-    private damageCreature(creature: Creature, damage: number, tickCtr: number, fertilize: boolean = true): number {
+    private damageCreature(creature: Creature, damage: number, source: DamageSource): number {
         creature.hp -= damage;
 
         if (creature.hp <= 0) {
+            if (this.debug) {
+                switch (source.type) {
+                    case "hunger": {
+                        console.log(this.tickCtr + ": " + creature.bot!.id + " starved");
+                        break;
+                    }
+                    case "falling": {
+                        console.log(this.tickCtr + ": " + creature.bot!.id + " fell");
+                        break;
+                    }
+                    case "rock": {
+                        console.log(this.tickCtr + ": " + creature.bot!.id + " crushed by rock");
+                        break;
+                    }
+                    case "bit": {
+                        console.log(this.tickCtr + ": " + creature.bot!.id + " killed by " + this.creatures.find(c => c.id == source.byId)?.bot?.id);
+                        break;
+                    }
+                }
+            }
+
             const creatureIndex = this.creatures.indexOf(creature);
             this.creatures.splice(creatureIndex, 1);
-            this.deadCreatures.push({ diedTick: tickCtr, creature });
+            this.deadCreatures.push({ diedTick: this.tickCtr, creature });
 
-            if (fertilize) {
+            if (source.type != "hunger") {
                 this.fertilize(creature.pos.x, creature.pos.y);
             }
 

@@ -19,6 +19,27 @@
             <div id="sidebar">
                 <div id="controls">
                     <h2>Controls</h2>
+
+                    <p><b>Tick: </b><code id="tick">0</code></p>
+
+                    <p><b>Tick rate: </b><input type="number" id="tick_rate" value="2" size="4"/></p>
+
+                    <div class="buttons">
+                        <button id="step">Step</button>
+                        <button id="start">Start</button>
+                        <button id="stop" disabled>Stop</button>
+                    </div>
+
+                    <div class="buttons">
+                        <button id="reset">Reset</button>
+                    </div>
+
+                    <p>
+                        <b>Spectate bot: </b>
+                        <select id="spectate">
+                            <option selected>(None)</option>
+                        </select>
+                    </p>
                 </div>
 
                 <div id="creatures">

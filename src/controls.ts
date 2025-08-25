@@ -7,52 +7,17 @@ interface Binding {
 // const LEFT_MOUSE_BTN = 0;
 const RIGHT_MOUSE_BTN = 2;
 
-const bindings: Binding[] = [
-    {
-        id: "up",
-        keys: ["KeyW", "ArrowUp"],
-        mouseBtns: []
-    },
-    {
-        id: "down",
-        keys: ["KeyS", "ArrowDown"],
-        mouseBtns: []
-    },
-    {
-        id: "left",
-        keys: ["KeyA", "ArrowLeft"],
-        mouseBtns: []
-    },
-    {
-        id: "right",
-        keys: ["KeyD", "ArrowRight"],
-        mouseBtns: []
-    },
-    {
-        id: "zoom_in",
-        keys: ["KeyZ"],
-        mouseBtns: []
-    },
-    {
-        id: "zoom_out",
-        keys: ["KeyX"],
-        mouseBtns: []
-    },
-    {
-        id: "fast",
-        keys: ["ShiftLeft", "ShiftRight"],
-        mouseBtns: []
-    }
-];
-
 export class Controls {
+    private bindings: Binding[];
+
     private canvas: HTMLCanvasElement;
 
     private keysDown: Set<string> = new Set();
     private mouseBtnsDown: Set<number> = new Set();
 
-    private mouseOffset?: [number, number];
+    public mouseOffset?: [number, number];
 
+    private bindDownListeners: Map<string, (() => void)[]>;
     private bindNowDownListeners: Map<string, (() => void)[]>;
     private bindUpListeners: Map<string, (() => void)[]>;
     private mouseMoveListeners: ((pointingDir: number | null) => void)[] = [];
@@ -66,17 +31,27 @@ export class Controls {
     private contextmenuListener: (event: MouseEvent) => void;
     private blurListener: () => void;
 
-    constructor(canvas: HTMLCanvasElement) {
+    constructor(bindings: Binding[], canvas: HTMLCanvasElement) {
+        this.bindings = bindings;
+
         this.canvas = canvas;
 
-        this.bindNowDownListeners = new Map(bindings.map(b => [b.id, []]));
-        this.bindUpListeners = new Map(bindings.map(b => [b.id, []]));
+        this.bindDownListeners = new Map(this.bindings.map(b => [b.id, []]));
+        this.bindNowDownListeners = new Map(this.bindings.map(b => [b.id, []]));
+        this.bindUpListeners = new Map(this.bindings.map(b => [b.id, []]));
 
         window.addEventListener("keydown", this.keydownListener = (event: KeyboardEvent) => {
+            if (event.code == "Space" && event.target == document.body) {
+                event.preventDefault();
+            }
+
+            let bindsDown = [];
             let bindsNowDown = [];
 
-            bindings: for (const binding of bindings) {
+            bindings: for (const binding of this.bindings) {
                 if (binding.keys.includes(event.code)) {
+                    bindsDown.push(binding.id);
+
                     for (const key of binding.keys) {
                         if (this.keysDown.has(key)) {
                             continue bindings;
@@ -94,6 +69,11 @@ export class Controls {
 
             this.keysDown.add(event.code);
 
+            for (const binding_id of bindsDown) {
+                for (const listener of this.bindDownListeners.get(binding_id)!) {
+                    listener();
+                }
+            }
             for (const binding_id of bindsNowDown) {
                 for (const listener of this.bindNowDownListeners.get(binding_id)!) {
                     listener();
@@ -104,7 +84,7 @@ export class Controls {
         window.addEventListener("keyup", this.keyupListener = (event: KeyboardEvent) => {
             this.keysDown.delete(event.code);
 
-            bindings: for (const binding of bindings) {
+            bindings: for (const binding of this.bindings) {
                 if (binding.keys.includes(event.code)) {
                     for (const key of binding.keys) {
                         if (this.keysDown.has(key)) {
@@ -127,7 +107,7 @@ export class Controls {
         canvas.addEventListener("mousedown", this.mousedownListener = (event: MouseEvent) => {
             let bindsNowDown = [];
 
-            bindings: for (const binding of bindings) {
+            bindings: for (const binding of this.bindings) {
                 if (binding.mouseBtns.includes(event.button)) {
                     for (const key of binding.keys) {
                         if (this.keysDown.has(key)) {
@@ -156,7 +136,7 @@ export class Controls {
         canvas.addEventListener("mouseup", this.mouseupListener = (event: MouseEvent) => {
             this.mouseBtnsDown.delete(event.button);
 
-            bindings: for (const binding of bindings) {
+            bindings: for (const binding of this.bindings) {
                 if (binding.mouseBtns.includes(event.button)) {
                     for (const key of binding.keys) {
                         if (this.keysDown.has(key)) {
@@ -185,7 +165,7 @@ export class Controls {
         });
 
         canvas.addEventListener("contextmenu", this.contextmenuListener = (event: MouseEvent) => {
-            for (const binding of bindings) {
+            for (const binding of this.bindings) {
                 if (binding.mouseBtns.includes(RIGHT_MOUSE_BTN)) {
                     event.preventDefault();
 
@@ -212,9 +192,13 @@ export class Controls {
     }
 
     public isBindDown(binding_id: string) {
-        const binding = bindings.find(b => b.id == binding_id)!;
+        const binding = this.bindings.find(b => b.id == binding_id)!;
 
         return binding!.keys.some(k => this.keysDown.has(k)) || binding!.mouseBtns.some(b => this.mouseBtnsDown.has(b));
+    }
+
+    public onBindDown(binding_id: string, fn: () => void) {
+        this.bindDownListeners.get(binding_id)!.push(fn);
     }
 
     public onBindNowDown(binding_id: string, fn: () => void) {

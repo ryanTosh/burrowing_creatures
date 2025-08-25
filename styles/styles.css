@@ -48,7 +48,57 @@ canvas {
     font-size: 16px;
     margin: 0;
     border-bottom: 1px solid #cccccc;
-    margin-bottom: 4px;
+    margin-bottom: 8px;
+}
+
+#sidebar > #controls h2 {
+    margin-bottom: 12px;
+}
+
+#controls p {
+    font-size: 14px;
+    margin: 8px 0;
+}
+
+#controls p code {
+    font-size: 13px;
+    font-family: 'Roboto Mono', monospace;
+    padding: 2px 4px;
+    background-color: #000000;
+}
+
+#controls input[type=number], #controls select {
+    background-color: #000000;
+    color: inherit;
+    font: inherit;
+    line-height: inherit;
+    border: 1px solid #222;
+    padding: 6px;
+}
+
+#controls .buttons {
+    display: flex;
+    gap: 8px;
+    margin: 8px 0;
+}
+
+#controls button {
+    background-color: #000000;
+    color: inherit;
+    font: inherit;
+    line-height: inherit;
+    font-size: 14px;
+    font-weight: bold;
+    padding: 8px 12px;
+    border: none;
+    flex: 1 0 0;
+    cursor: pointer;
+}
+
+#controls button:disabled {
+    background-color: #444;
+    color: #888;
+    cursor: initial;
 }
 
 #creatures {
@@ -89,7 +139,20 @@ canvas {
     white-space: pre-wrap;
 }
 
+.creature a {
+    color: #c1c1c1;
+}
+
 .creature h4 {
     font-size: 14px;
     margin: 0;
+}
+
+input:focus, select:focus {
+    outline: 1px solid #6bf;
+    border: 1px solid #6bf !important;
+}
+
+#controls button:focus, summary:focus {
+    outline: 2px solid #6bf;
 }

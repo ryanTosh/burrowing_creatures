@@ -182,6 +182,16 @@ export class World {
         return this.isXAdjacentUnchecked(x1, x2);
     }
 
+    public wrappingXOffset(x1: number, x2: number): number {
+        if (x1 < 0 || x1 >= this.width) x1 = (x1 % this.width + this.width) % this.width;
+        if (x2 < 0 || x2 >= this.width) x2 = (x2 % this.width + this.width) % this.width;
+
+        const off1 = (x2 + this.width) - x1;
+        const off2 = x2 - (x1 + this.width);
+
+        return Math.abs(off1) < Math.abs(x2 - x1) ? off1 : Math.abs(off2) < Math.abs(x2 - x1) ? off2 : x2 - x1;
+    }
+
     public isReachableFrom(x1: number, y1: number, x2: number, y2: number): boolean {
         if (x1 < 0 || x1 >= this.width) x1 = (x1 % this.width + this.width) % this.width;
         if (x2 < 0 || x2 >= this.width) x2 = (x2 % this.width + this.width) % this.width;
@@ -200,6 +210,10 @@ export class World {
         return false;
     }
 
+    public dist(x1: number, y1: number, x2: number, y2: number): number {
+        return Math.abs(this.wrappingXOffset(x1, x2)) + Math.abs(y1 - y2);
+    }
+
     public getGrid(): Cell[][] {
         return this.grid;
     }
@@ -216,5 +230,61 @@ export class World {
 
     public clone(): World {
         return new World(this.width, this.groundHeight, [...this.grid].map(g => [...g]), [...this.bgGrid].map(g => [...g]));
+    }
+
+    public willFall(x: number, y: number): boolean {
+        return !this.isSolid(x, y - 1) && !(this.isSolid(x - 1, y) && this.isSolid(x + 1, y));
+    }
+    
+    public simulateLeft(x: number, y: number): { x: number, y: number, falling: boolean } | null {
+        const leftX = (x + this.width - 1) % this.width;
+
+        if (!this.isSolid(leftX, y)) {
+            if (!this.isSolid(leftX, y - 1)) {
+                return { x: leftX, y: y - 1, falling: this.willFall(leftX, y - 1) };
+            } else {
+                return { x: leftX, y, falling: false };
+            }
+        } else {
+            if (!this.isSolid(x, y + 1) && !this.isSolid(leftX, y + 1)) {
+                return { x: leftX, y: y + 1, falling: false };
+            }
+        }
+
+        return null;
+    }
+
+    public simulateRight(x: number, y: number): { x: number, y: number, falling: boolean } | null {
+        const rightX = (x + 1) % this.width;
+
+        if (!this.isSolid(rightX, y)) {
+            if (!this.isSolid(rightX, y - 1)) {
+                return { x: rightX, y: y - 1, falling: this.willFall(rightX, y - 1) };
+            } else {
+                return { x: rightX, y, falling: false };
+            }
+        } else {
+            if (!this.isSolid(x, y + 1) && !this.isSolid(rightX, y + 1)) {
+                return { x: rightX, y: y + 1, falling: false };
+            }
+        }
+
+        return null;
+    }
+
+    public simulateClimbUp(x: number, y: number): { x: number, y: number, falling: boolean } | null {
+        if (!this.isSolid(x, y + 1) && this.isSolid(x - 1, y + 1) && this.isSolid(x + 1, y + 1)) {
+            return { x, y: y + 1, falling: false };
+        }
+
+        return null;
+    }
+
+    public simulateClimbDown(x: number, y: number): { x: number, y: number, falling: boolean } | null {
+        if (!this.isSolid(x, y - 1)) {
+            return { x, y: y - 1, falling: this.willFall(x, y - 1) };
+        }
+
+        return null;
     }
 }
