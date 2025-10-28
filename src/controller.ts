@@ -515,7 +515,10 @@ export class Controller {
                     case Cell.Dirt:
                     case Cell.ChippedStone:
                     case Cell.MossyChippedStone: {
-                        if (safe && move.pos.y == creature.pos.y && !this.world.isSolid(creature.pos.x, creature.pos.y - 1)) return false;
+                        if (safe) {
+                            if (move.pos.y == creature.pos.y && !this.world.isSolid(creature.pos.x, creature.pos.y - 1)) return false;
+                            if (move.pos.x == creature.pos.x && move.pos.y == creature.pos.y - 1 && !this.world.isSolid(creature.pos.x, creature.pos.y - 1)) return false;
+                        }
 
                         this.world.setCell(move.pos.x, move.pos.y, Cell.Empty);
                         
