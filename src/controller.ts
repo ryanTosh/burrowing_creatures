@@ -139,6 +139,7 @@ export class Controller {
 
         creatures[0] = {
             id: 0,
+            isPlayer: true,
             pos: this.findCreatureSpawnPos(world, creatures),
             hp: SPAWN_HIT_POINTS,
             fullness: SPAWN_FULLNESS,
@@ -147,7 +148,6 @@ export class Controller {
             carryingRock: false,
             bot: {
                 id: "__player__",
-                isPlayer: true,
                 run() {
                     return moveBox.move;
                 }
