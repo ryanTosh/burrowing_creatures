@@ -12,7 +12,7 @@ declare global {
     }
 }
 
-window.superHot = false;
+window.superHot = true;
 window.sampleBots = sampleBots;
 window.runCompetitionController = (bots: Bot[], copies: number, debug: boolean = false): { bot: string, ticks: number } => {
     const controller = Controller.buildController(bots, copies, debug);
@@ -46,7 +46,7 @@ if (window.superHot) {
     const controls = new Controls([
         {
             id: "still",
-            keys: ["KeyX"],
+            keys: ["KeyS"],
             mouseBtns: []
         },
         {
@@ -56,7 +56,7 @@ if (window.superHot) {
         },
         {
             id: "down",
-            keys: ["KeyS", "ArrowDown"],
+            keys: ["KeyX", "ArrowDown"],
             mouseBtns: []
         },
         {
@@ -115,6 +115,11 @@ if (window.superHot) {
             mouseBtns: []
         }
     ], canvas);
+
+    // Left click: move or dig
+    // Right click: eat
+    // Unmapped: rock interactions, bite
+
     let controller = Controller.buildSuperHotController(moveBox, sampleBots, 4);
     const graphics = new Graphics(canvas, window.innerWidth, window.innerHeight, controller, controls);
 
@@ -284,7 +289,7 @@ if (window.superHot) {
             mouseBtns: []
         }
     ], canvas);
-    let controller = Controller.buildController(sampleBots, 4);
+    let controller = Controller.buildController(sampleBots, 1);
     const graphics = new Graphics(canvas, Math.floor(window.innerWidth * (1 - 0.0625) - 120 - 180), window.innerHeight, controller, controls);
 
     let tickInterval: number | null = null;

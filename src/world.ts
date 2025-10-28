@@ -59,7 +59,7 @@ export class World {
     private grid: Cell[][];
     private bgGrid: BgCell[][];
 
-    private constructor(width: number, groundHeight: number, grid: Cell[][], bgGrid: BgCell[][]) {
+    constructor(width: number, groundHeight: number, grid: Cell[][], bgGrid: BgCell[][]) {
         this.width = width;
         this.groundHeight = groundHeight;
 

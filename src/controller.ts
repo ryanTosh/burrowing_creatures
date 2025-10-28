@@ -20,6 +20,7 @@ export interface LastMove {
 
 export interface Creature {
     id: number;
+    isPlayer?: boolean;
     pos: { x: number, y: number };
     hp: number;
     fullness: number;
@@ -146,6 +147,7 @@ export class Controller {
             carryingRock: false,
             bot: {
                 id: "__player__",
+                isPlayer: true,
                 run() {
                     return moveBox.move;
                 }
@@ -263,182 +265,9 @@ export class Controller {
 
             creature.lastMoves!.push({ tick: this.tickCtr, pos: { x: creature.pos.x, y: creature.pos.y }, move });
 
-            if (move === null) continue;
-
-            switch (move.type) {
-                case "left": {
-                    const simLeft = this.world.simulateLeft(creature.pos.x, creature.pos.y);
-
-                    if (simLeft !== null) {
-                        creature.pos.x = simLeft.x;
-                        creature.pos.y = simLeft.y;
-                    }
-
-                    break;
-                }
-                case "right": {
-                    const simRight = this.world.simulateRight(creature.pos.x, creature.pos.y);
-
-                    if (simRight !== null) {
-                        creature.pos.x = simRight.x;
-                        creature.pos.y = simRight.y;
-                    }
-
-                    break;
-                }
-                case "climb_up": {
-                    const simClimbUp = this.world.simulateClimbUp(creature.pos.x, creature.pos.y);
-
-                    if (simClimbUp !== null) {
-                        creature.pos.x = simClimbUp.x;
-                        creature.pos.y = simClimbUp.y;
-                    }
-
-                    break;
-                }
-                case "climb_down": {
-                    const simClimbDown = this.world.simulateClimbDown(creature.pos.x, creature.pos.y);
-
-                    if (simClimbDown !== null) {
-                        creature.pos.x = simClimbDown.x;
-                        creature.pos.y = simClimbDown.y;
-                    }
-
-                    break;
-                }
-                case "dig": {
-                    if (!isValidTarget(creature, move.pos, this.world)) break;
-
-                    const cell = this.world.getCell(move.pos.x, move.pos.y);
-
-                    switch (cell) {
-                        case Cell.GrassyDirt:
-                        case Cell.BarrenDirt:
-                        case Cell.Dirt:
-                        case Cell.ChippedStone:
-                        case Cell.MossyChippedStone:
-                        {
-                            this.world.setCell(move.pos.x, move.pos.y, Cell.Empty);
-                            break;
-                        }
-                        case Cell.Stone:
-                        {
-                            this.world.setCell(move.pos.x, move.pos.y, Cell.ChippedStone);
-                            break;
-                        }
-                        case Cell.MossyStone:
-                        {
-                            this.world.setCell(move.pos.x, move.pos.y, Cell.MossyChippedStone);
-                            break;
-                        }
-                    }
-
-                    break;
-                }
-                case "pick_up": {
-                    if (!isValidTarget(creature, move.pos, this.world)) break;
-                    if (creature.carryingRock) break;
-
-                    const cell = this.world.getCell(move.pos.x, move.pos.y);
-
-                    if (cell == Cell.Rock) {
-                        this.world.setCell(move.pos.x, move.pos.y, Cell.Empty);
-                        creature.carryingRock = true;
-                    }
-
-                    break;
-                }
-                case "drop": {
-                    if (!isValidTarget(creature, move.pos, this.world)) break;
-                    if (!creature.carryingRock) break;
-
-                    if (!this.world.isSolid(move.pos.x, move.pos.y)) {
-                        this.world.setCell(move.pos.x, move.pos.y, Cell.Rock);
-                        creature.carryingRock = false;
-
-                        const crushed = this.creatures.filter(c => c.pos.x == move.pos.x && c.pos.y == move.pos.y);
-                        if (crushed.length != 0) {
-                            const onSolidGround = this.world.isSolid(move.pos.x, move.pos.y - 1);
-
-                            this.world.setCell(move.pos.x, move.pos.y, Cell.Empty);
-
-                            for (const victim of crushed) {
-                                const killedIndex = this.damageCreature(creature, ROCK_CRUSH_BASE_DAMAGE, { type: "rock" });
-
-                                if (killedIndex != -1) {
-                                    if (killedIndex <= i) i--;
-                                } else if (!onSolidGround && !victim.falling) {
-                                    victim.pos.y -= 1;
-                                    victim.falling = true;
-                                }
-                            }
-                        }
-                    }
-
-                    break;
-                }
-                case "eat": {
-                    if (!isValidTarget(creature, move.pos, this.world)) break;
-
-                    const cell = this.world.getCell(move.pos.x, move.pos.y);
-
-                    if (cell == Cell.SmallGrassTufts) {
-                        creature.hp = Math.min(creature.hp + SMALL_GRASS_TUFTS_HIT_POINTS, MAX_HIT_POINTS);
-                        creature.fullness = Math.min(creature.fullness + SMALL_GRASS_TUFTS_FULLNESS, MAX_FULLNESS);
-                        this.world.setCell(move.pos.x, move.pos.y, Cell.Empty);
-                    } else if (cell == Cell.LargeGrassTufts) {
-                        creature.hp = Math.min(creature.hp + LARGE_GRASS_TUFTS_HIT_POINTS, MAX_HIT_POINTS);
-                        creature.fullness = Math.min(creature.fullness + LARGE_GRASS_TUFTS_FULLNESS, MAX_FULLNESS);
-                        this.world.setCell(move.pos.x, move.pos.y, Cell.SmallGrassTufts);
-                    } else if (cell == Cell.GrassyDirt) {
-                        creature.hp = Math.min(creature.hp + GRASSY_DIRT_HIT_POINTS, MAX_HIT_POINTS);
-                        creature.fullness = Math.min(creature.fullness + GRASSY_DIRT_FULLNESS, MAX_FULLNESS);
-                        this.world.setCell(move.pos.x, move.pos.y, Cell.BarrenDirt);
-                    } else if (cell == Cell.MossyStone) {
-                        creature.hp = Math.min(creature.hp + MOSS_HIT_POINTS, MAX_HIT_POINTS);
-                        creature.fullness = Math.min(creature.fullness + MOSS_FULLNESS, MAX_FULLNESS);
-                        this.world.setCell(move.pos.x, move.pos.y, Cell.Stone);
-                    } else if (cell == Cell.MossyChippedStone) {
-                        creature.hp = Math.min(creature.hp + MOSS_HIT_POINTS, MAX_HIT_POINTS);
-                        creature.fullness = Math.min(creature.fullness + MOSS_FULLNESS, MAX_FULLNESS);
-                        this.world.setCell(move.pos.x, move.pos.y, Cell.ChippedStone);
-                    } else if (cell == Cell.MossyBedrock) {
-                        creature.hp = Math.min(creature.hp + MOSS_HIT_POINTS, MAX_HIT_POINTS);
-                        creature.fullness = Math.min(creature.fullness + MOSS_FULLNESS, MAX_FULLNESS);
-                        this.world.setCell(move.pos.x, move.pos.y, Cell.Bedrock);
-                    }
-
-                    break;
-                }
-                case "bite": {
-                    if ("victim" in move) {
-                        const victim = this.creatures.find(c => c.id == move.victim);
-                        if (victim === undefined) break;
-
-                        if (!isValidTarget(creature, victim.pos, this.world)) break;
-
-                        const killedIndex = this.damageCreature(victim, BITE_DAMAGE, { type: "bit", byId: creature.id });
-                        if (killedIndex != -1) {
-                            if (killedIndex <= i) i--;
-                        }
-                    } else if ("pos" in move) {
-                        if (!isValidTarget(creature, move.pos, this.world)) break;
-
-                        const victims = this.creatures.filter(c => c != creature && c.pos.x == move.pos.x && c.pos.y == move.pos.y);
-
-                        if (victims.length == 0) break;
-
-                        const victim = victims[Math.floor(Math.random() * victims.length)];
-
-                        const killedIndex = this.damageCreature(victim, BITE_DAMAGE, { type: "bit", byId: creature.id });
-                        if (killedIndex != -1) {
-                            if (killedIndex <= i) i--;
-                        }
-                    }
-
-                    break;
-                }
-            }
+            const iBox = { i };
+            this.runMove(move, creature, iBox, creature.isPlayer ?? false);
+            i = iBox.i;
         }
 
         const maxY = this.world.getGrid().length;
@@ -651,6 +480,168 @@ export class Controller {
         }
 
         return move;
+    }
+
+    private runMove(move: Move, creature: Creature, iBox: { i: number }, safe: boolean): boolean {
+        if (move === null) return true;
+
+        switch (move.type) {
+            case "left":
+            case "right":
+            case "climb_up": 
+            case "climb_down": {
+                const sim = this.world[({
+                    "left": "simulateLeft",
+                    "right": "simulateRight",
+                    "climb_up": "simulateClimbUp",
+                    "climb_down": "simulateClimbDown"
+                } as const)[move.type]](creature.pos.x, creature.pos.y);
+
+                if (sim === null || (safe && sim.falling)) return false;
+
+                creature.pos.x = sim.x;
+                creature.pos.y = sim.y;
+
+                return true;
+            }
+            case "dig": {
+                if (!isValidTarget(creature, move.pos, this.world)) return false;
+
+                const cell = this.world.getCell(move.pos.x, move.pos.y);
+
+                switch (cell) {
+                    case Cell.GrassyDirt:
+                    case Cell.BarrenDirt:
+                    case Cell.Dirt:
+                    case Cell.ChippedStone:
+                    case Cell.MossyChippedStone: {
+                        if (safe && move.pos.y == creature.pos.y && !this.world.isSolid(creature.pos.x, creature.pos.y - 1)) return false;
+
+                        this.world.setCell(move.pos.x, move.pos.y, Cell.Empty);
+                        
+                        return true;
+                    }
+                    case Cell.Stone: {
+                        this.world.setCell(move.pos.x, move.pos.y, Cell.ChippedStone);
+
+                        return true;
+                    }
+                    case Cell.MossyStone: {
+                        this.world.setCell(move.pos.x, move.pos.y, Cell.MossyChippedStone);
+
+                        return true;
+                    }
+                    default: {
+                        return false;
+                    }
+                }
+            }
+            case "pick_up": {
+                if (!isValidTarget(creature, move.pos, this.world)) return false;
+                if (creature.carryingRock) return false;
+                if (safe && move.pos.y == creature.pos.y && !this.world.isSolid(creature.pos.x, creature.pos.y - 1)) return false;
+
+                const cell = this.world.getCell(move.pos.x, move.pos.y);
+
+                if (cell != Cell.Rock) return false;
+
+                this.world.setCell(move.pos.x, move.pos.y, Cell.Empty);
+                creature.carryingRock = true;
+
+                return true;
+            }
+            case "drop": {
+                if (!isValidTarget(creature, move.pos, this.world)) return false;
+                if (!creature.carryingRock) return false;
+                if (safe && move.pos.x == creature.pos.x && move.pos.y >= creature.pos.y) return false;
+
+                if (this.world.isSolid(move.pos.x, move.pos.y)) return false;
+
+                this.world.setCell(move.pos.x, move.pos.y, Cell.Rock);
+                creature.carryingRock = false;
+
+                const crushed = this.creatures.filter(c => c.pos.x == move.pos.x && c.pos.y == move.pos.y);
+                if (crushed.length != 0) {
+                    const onSolidGround = this.world.isSolid(move.pos.x, move.pos.y - 1);
+
+                    this.world.setCell(move.pos.x, move.pos.y, Cell.Empty);
+
+                    for (const victim of crushed) {
+                        const killedIndex = this.damageCreature(creature, ROCK_CRUSH_BASE_DAMAGE, { type: "rock" });
+
+                        if (killedIndex != -1) {
+                            if (killedIndex <= iBox.i) iBox.i--;
+                        } else if (!onSolidGround && !victim.falling) {
+                            victim.pos.y -= 1;
+                            victim.falling = true;
+                        }
+                    }
+                }
+
+                return true;
+            }
+            case "eat": {
+                if (!isValidTarget(creature, move.pos, this.world)) return false;
+
+                const cell = this.world.getCell(move.pos.x, move.pos.y);
+
+                if (cell == Cell.SmallGrassTufts) {
+                    creature.hp = Math.min(creature.hp + SMALL_GRASS_TUFTS_HIT_POINTS, MAX_HIT_POINTS);
+                    creature.fullness = Math.min(creature.fullness + SMALL_GRASS_TUFTS_FULLNESS, MAX_FULLNESS);
+                    this.world.setCell(move.pos.x, move.pos.y, Cell.Empty);
+                } else if (cell == Cell.LargeGrassTufts) {
+                    creature.hp = Math.min(creature.hp + LARGE_GRASS_TUFTS_HIT_POINTS, MAX_HIT_POINTS);
+                    creature.fullness = Math.min(creature.fullness + LARGE_GRASS_TUFTS_FULLNESS, MAX_FULLNESS);
+                    this.world.setCell(move.pos.x, move.pos.y, Cell.SmallGrassTufts);
+                } else if (cell == Cell.GrassyDirt) {
+                    creature.hp = Math.min(creature.hp + GRASSY_DIRT_HIT_POINTS, MAX_HIT_POINTS);
+                    creature.fullness = Math.min(creature.fullness + GRASSY_DIRT_FULLNESS, MAX_FULLNESS);
+                    this.world.setCell(move.pos.x, move.pos.y, Cell.BarrenDirt);
+                } else if (cell == Cell.MossyStone) {
+                    creature.hp = Math.min(creature.hp + MOSS_HIT_POINTS, MAX_HIT_POINTS);
+                    creature.fullness = Math.min(creature.fullness + MOSS_FULLNESS, MAX_FULLNESS);
+                    this.world.setCell(move.pos.x, move.pos.y, Cell.Stone);
+                } else if (cell == Cell.MossyChippedStone) {
+                    creature.hp = Math.min(creature.hp + MOSS_HIT_POINTS, MAX_HIT_POINTS);
+                    creature.fullness = Math.min(creature.fullness + MOSS_FULLNESS, MAX_FULLNESS);
+                    this.world.setCell(move.pos.x, move.pos.y, Cell.ChippedStone);
+                } else if (cell == Cell.MossyBedrock) {
+                    creature.hp = Math.min(creature.hp + MOSS_HIT_POINTS, MAX_HIT_POINTS);
+                    creature.fullness = Math.min(creature.fullness + MOSS_FULLNESS, MAX_FULLNESS);
+                    this.world.setCell(move.pos.x, move.pos.y, Cell.Bedrock);
+                }
+
+                return true;
+            }
+            case "bite": {
+                if ("victim" in move) {
+                    const victim = this.creatures.find(c => c.id == move.victim);
+                    if (victim === undefined) return false;
+
+                    if (!isValidTarget(creature, victim.pos, this.world)) return false;
+
+                    const killedIndex = this.damageCreature(victim, BITE_DAMAGE, { type: "bit", byId: creature.id });
+                    if (killedIndex != -1) {
+                        if (killedIndex <= iBox.i) iBox.i--;
+                    }
+                } else if ("pos" in move) {
+                    if (!isValidTarget(creature, move.pos, this.world)) return false;
+
+                    const victims = this.creatures.filter(c => c != creature && c.pos.x == move.pos.x && c.pos.y == move.pos.y);
+
+                    if (victims.length == 0) return false;
+
+                    const victim = victims[Math.floor(Math.random() * victims.length)];
+
+                    const killedIndex = this.damageCreature(victim, BITE_DAMAGE, { type: "bit", byId: creature.id });
+                    if (killedIndex != -1) {
+                        if (killedIndex <= iBox.i) iBox.i--;
+                    }
+                }
+
+                return true;
+            }
+        }
     }
 
     private damageCreature(creature: Creature, damage: number, source: DamageSource): number {

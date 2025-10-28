@@ -1517,21 +1517,25 @@ export const sampleBots: Bot[] = [
                         if (leftPos !== null && !tickCount.has(leftPos.x + "," + leftPos.y)) {
                             queue.push(leftPos);
                             if (world.isReachableFrom(leftPos.x, leftPos.y, x2, y2)) return tickCount.get(pos.x + "," + pos.y)! + 1;
+                            if (world.isReachableFrom(leftPos.x, leftPos.y, x2, y2 - 1)) return tickCount.get(pos.x + "," + pos.y)! + 1;
                             tickCount.set(leftPos.x + "," + leftPos.y, tickCount.get(pos.x + "," + pos.y)! + 1);
                         }
                         if (rightPos !== null && !tickCount.has(rightPos.x + "," + rightPos.y)) {
                             queue.push(rightPos);
                             if (world.isReachableFrom(rightPos.x, rightPos.y, x2, y2)) return tickCount.get(pos.x + "," + pos.y)! + 1;
+                            if (world.isReachableFrom(rightPos.x, rightPos.y, x2, y2 - 1)) return tickCount.get(pos.x + "," + pos.y)! + 1;
                             tickCount.set(rightPos.x + "," + rightPos.y, tickCount.get(pos.x + "," + pos.y)! + 1);
                         }
                         if (climbUpPos !== null && !tickCount.has(climbUpPos.x + "," + climbUpPos.y)) {
                             queue.push(climbUpPos);
                             if (world.isReachableFrom(climbUpPos.x, climbUpPos.y, x2, y2)) return tickCount.get(pos.x + "," + pos.y)! + 1;
+                            if (world.isReachableFrom(climbUpPos.x, climbUpPos.y, x2, y2 - 1)) return tickCount.get(pos.x + "," + pos.y)! + 1;
                             tickCount.set(climbUpPos.x + "," + climbUpPos.y, tickCount.get(pos.x + "," + pos.y)! + 1);
                         }
                         if (climbDownPos !== null && !tickCount.has(climbDownPos.x + "," + climbDownPos.y)) {
                             queue.push(climbDownPos);
                             if (world.isReachableFrom(climbDownPos.x, climbDownPos.y, x2, y2)) return tickCount.get(pos.x + "," + pos.y)! + 1;
+                            if (world.isReachableFrom(climbDownPos.x, climbDownPos.y, x2, y2 - 1)) return tickCount.get(pos.x + "," + pos.y)! + 1;
                             tickCount.set(climbDownPos.x + "," + climbDownPos.y, tickCount.get(pos.x + "," + pos.y)! + 1);
                         }
                     }
@@ -1669,7 +1673,7 @@ export const sampleBots: Bot[] = [
                     }
                 }
 
-                if (hp < 0 && self.hp + hp <= 0) continue;
+                if (hp < 0) continue;
 
                 for (let oy = ry + 1; oy >= ry - 1; oy--) {
                     for (let ox = rx - 1; ox <= rx + 1; ox++) {
@@ -1726,9 +1730,9 @@ export const sampleBots: Bot[] = [
                         return dig(x + 1, y + 1);
                     }
                 }
-                if (world.isSolid(x, y + 1) && !world.isRock(x, y + 2) && (world.isSolid(x - 1, y + 1) && world.isSolid(x + 1, y + 1) || world.isSolid(x - 1, y) || world.isSolid(x + 1, y))) {
-                    return dig(x, y + 1);
-                }
+                // if (world.isSolid(x, y + 1) && !world.isRock(x, y + 2) && (world.isSolid(x - 1, y + 1) && world.isSolid(x + 1, y + 1) || world.isSolid(x - 1, y) || world.isSolid(x + 1, y))) {
+                //     return dig(x, y + 1);
+                // }
                 if (world.isSolid(x - 1, y) && !world.isSolid(x - 2, y) && !world.isSolid(x - 2, y - 2) && world.isSolid(x, y - 1)) {
                     if (world.isRock(x - 1, y)) {
                         if (!self.carryingRock) return pickUpRock(x - 1, y);
@@ -2349,5 +2353,497 @@ export const sampleBots: Bot[] = [
                 return bestTargetMove;
             }
         }
-    }
+    },
+    {
+        id: "backfiller",
+        run(self, others, world): Move | null {
+            const { x, y } = self.pos;
+
+            if (self.carryingRock) {
+                const nearby = others.find(o => world.isXAdjacent(o.pos.x, x) && o.pos.y == y - 1 && !world.isSolid(o.pos.x, o.pos.y + 1));
+                if (nearby !== undefined) return dropRock(nearby.pos.x, nearby.pos.y + 1);
+            }
+            {
+                const nearby = others.find(o => world.isXAdjacent(o.pos.x, x) && (o.pos.y == y || o.pos.y == y + 1) && [Cell.GrassyDirt, Cell.BarrenDirt, Cell.Dirt, Cell.ChippedStone, Cell.MossyChippedStone].includes(world.getCell(o.pos.x, o.pos.y - 1)));
+                if (nearby !== undefined) return dig(nearby.pos.x, nearby.pos.y - 1);
+            }
+            {
+                const nearby = others.find(o => world.isReachableFrom(x, y, o.pos.x, o.pos.y));
+                if (nearby !== undefined) return biteByCreature(nearby.id);
+            }
+
+            if (self.fullness < 180 || self.hp < 20) {
+                for (let oy = y + 1; oy >= y - 1; oy--) {
+                    for (let ox = x - 1; ox <= x + 1; ox++) {
+                        if ([Cell.SmallGrassTufts, Cell.LargeGrassTufts, Cell.GrassyDirt].includes(world.getCell(ox, oy)) && world.isReachableFrom(x, y, ox, oy)) {
+                            return eat(ox, oy);
+                        }
+                    }
+                }
+            }
+            if (self.fullness < 185) {
+                for (let oy = y + 1; oy >= y - 1; oy--) {
+                    for (let ox = x - 1; ox <= x + 1; ox++) {
+                        if ([Cell.MossyStone, Cell.MossyChippedStone, Cell.MossyBedrock].includes(world.getCell(ox, oy)) && world.isReachableFrom(x, y, ox, oy)) {
+                            return eat(ox, oy);
+                        }
+                    }
+                }
+            }
+
+            function withDig(world: World, x: number, y: number): World {
+                const grid = [...world.getGrid()];
+                grid[y] = [...grid[y]];
+                const nWorld = new World(world.width, world.groundHeight, grid, world.getBgGrid());
+                nWorld.setCell(x, y, Cell.Empty);
+                return nWorld;
+            }
+
+            if (self.carryingRock) {
+                if (!world.isSolid(x - 1, y) && !world.isSolid(x - 1, y - 1) && !world.isSolid(x - 1, y - 2)) {
+                    return dropRock(x - 1, y - 1);
+                }
+                if (!world.isSolid(x + 1, y) && !world.isSolid(x + 1, y - 1) && !world.isSolid(x + 1, y - 2)) {
+                    return dropRock(x + 1, y - 1);
+                }
+
+                const queue: ({ x: number, y: number, falling: boolean, world: World, cost: number })[] = [{ ...self.pos, falling: false, world, cost: 0 }];
+                const routes: Map<string, (Move | { type: "_falling" })[]> = new Map([[x + "," + y, []]]);
+                for (let i = 0; i < 128;) {
+                    if (!queue.length) break;
+
+                    const pos = queue.shift()!;
+                    const past = routes.get(pos.x + "," + pos.y + (pos.falling ? "," : ""))!;
+
+                    if (pos.world.willFall(pos.x, pos.y) || pos.falling && !pos.world.isSolid(pos.x, pos.y - 1)) {
+                        if (!routes.get(pos.x + "," + (pos.y - 1) + ",")) {
+                            queue.push({ x: pos.x, y: pos.y - 1, falling: true, world: pos.world, cost: pos.cost + 1 });
+                            routes.set(pos.x + "," + (pos.y - 1) + ",", past.concat([{ type: "_falling" }]));
+                        }
+                    } else {
+                        const leftPos = pos.world.simulateLeft(pos.x, pos.y);
+                        const rightPos = pos.world.simulateRight(pos.x, pos.y);
+                        const climbUpPos = pos.world.simulateClimbUp(pos.x, pos.y);
+                        const climbDownPos = pos.world.simulateClimbDown(pos.x, pos.y);
+
+                        if (leftPos !== null && !routes.has(leftPos.x + "," + leftPos.y)) {
+                            queue.push({ ...leftPos, world: pos.world, cost: pos.cost + 1 });
+                            routes.set(leftPos.x + "," + leftPos.y, past.concat([left()]));
+                        }
+                        if (rightPos !== null && !routes.has(rightPos.x + "," + rightPos.y)) {
+                            queue.push({ ...rightPos, world: pos.world, cost: pos.cost + 1 });
+                            routes.set(rightPos.x + "," + rightPos.y, past.concat([right()]));
+                        }
+                        if (climbUpPos !== null && !routes.has(climbUpPos.x + "," + climbUpPos.y)) {
+                            queue.push({ ...climbUpPos, world: pos.world, cost: pos.cost + 1 });
+                            routes.set(climbUpPos.x + "," + climbUpPos.y, past.concat([climbUp()]));
+                        }
+                        if (climbDownPos !== null && !routes.has(climbDownPos.x + "," + climbDownPos.y)) {
+                            queue.push({ ...climbDownPos, world: pos.world, cost: pos.cost + 1 });
+                            routes.set(climbDownPos.x + "," + climbDownPos.y, past.concat([climbDown()]));
+                        }
+
+                        const oneHits = [Cell.GrassyDirt, Cell.BarrenDirt, Cell.Dirt, Cell.ChippedStone, Cell.MossyChippedStone];
+                        const twoHits = [Cell.Stone, Cell.MossyStone];
+
+                        const cellUp = pos.world.getCell(pos.x, pos.y + 1);
+                        const cellDown = pos.world.getCell(pos.x, pos.y + 1);
+                        const cellLeft = pos.world.getCell(pos.x, pos.y + 1);
+                        const cellRight = pos.world.getCell(pos.x, pos.y + 1);
+                        if ((oneHits.includes(cellUp) || twoHits.includes(cellUp)) && !pos.world.isRock(pos.x, pos.y + 2) && pos.world.isSolid(pos.x - 1, pos.y + 1) && pos.world.isSolid(pos.x + 1, pos.y + 1) && !routes.has(pos.x + "," + (pos.y + 1))) {
+                            queue.push({ x: pos.x, y: pos.y + 1, world: withDig(pos.world, pos.x, pos.y + 1), falling: false, cost: pos.cost + (oneHits.includes(cellUp) ? 1 : 2) });
+                            routes.set(pos.x + "," + (pos.y + 1), past.concat([dig(pos.x, pos.y + 1), climbUp()]));
+                        }
+                        if (oneHits.includes(cellDown) || twoHits.includes(cellDown)) {
+                            const falling = !pos.world.isSolid(pos.x - 1, y) || !pos.world.isSolid(pos.x + 1, y);
+                            queue.push({ x: pos.x, y: pos.y - 1, world: withDig(pos.world, pos.x, pos.y - 1), falling, cost: pos.cost + (oneHits.includes(cellDown) ? 1 : 2) });
+                            routes.set(pos.x + "," + (pos.y - 1), past.concat([dig(pos.x, pos.y - 1), falling ? { type: "_falling" } : climbDown()]));
+                        }
+                    }
+                }
+
+                console.log(queue, routes);
+
+                let bestTargetScore = -Infinity;
+                let bestTargetMove: Move | null = null;
+                for (const [posStr, moves] of routes) {
+                    const [rx, ry] = posStr.split(",").map(Number);
+
+                    if (world.willFall(rx, ry) || moves.length != 0 && moves[moves.length - 1] !== null && moves[moves.length - 1]!.type == "_falling") continue;
+
+                    let hp = 0;
+                    let food = 0;
+
+                    let fallDist = 0;
+                    for (const move of moves) {
+                        if (move !== null && move.type == "_falling") {
+                            fallDist++;
+                        } else if (fallDist != 0) {
+                            hp -= fallDist > 2 ? (fallDist - 2) * 2 + 1 : 0;
+                            fallDist = 0;
+                        }
+                    }
+
+                    if (self.hp + hp <= 0) continue;
+
+                    for (let oy = ry + 1; oy >= ry - 1; oy--) {
+                        for (let ox = rx - 1; ox <= rx + 1; ox++) {
+                            if (!world.isReachableFrom(rx, ry, ox, oy)) continue;
+
+                            const cell = world.getCell(ox, oy);
+                            if (cell == Cell.LargeGrassTufts) {
+                                hp += 2;
+                                food += 50;
+                            } else if ([Cell.SmallGrassTufts, Cell.GrassyDirt].includes(cell)) {
+                                hp += 1;
+                                food += 25;
+                            }
+                        }
+                    }
+
+                    const score = food + Math.min(20 - self.hp, hp) * 2;
+                    if (score > bestTargetScore) {
+                        bestTargetScore = score;
+                        bestTargetMove = (moves[0] ?? null) as typeof bestTargetMove;
+                    }
+                }
+
+                return bestTargetMove;
+            } else {
+                const rocks: ({ x: number, y: number })[] = [];
+                for (let rx = x - 10; rx <= x + 10; rx++) {
+                    for (let ry = 1; ry <= y; ry++) {
+                        if (world.getCell(rx, ry) == Cell.Rock) {
+                            rocks.push({ x: rx, y: ry });
+                        }
+                    }
+                }
+                rocks.sort((a, b) => world.dist(x, y, a.x, a.y) - world.dist(x, y, b.x, b.y));
+
+                if (rocks.length != 0) {
+                    const rock = rocks[0];
+
+                    if (rock.y < y) {
+                        if (world.isSolid(x, y - 1)) {
+                            if (world.getCell(x, y - 1) == Cell.Rock) {
+                                return pickUpRock(x, y - 1);
+                            } else {
+                                return dig(x, y - 1);
+                            }
+                        } else {
+                            return climbDown();
+                        }
+                    } else {
+                        if (rock.x < x) {
+                            if (world.getCell(x - 1, y) == Cell.Rock) {
+                                return pickUpRock(x - 1, y);
+                            }
+
+                            if (world.isSolid(x - 1, y)) {
+                                return dig(x - 1, y);
+                            }
+
+                            return left();
+                        } else {
+                            if (world.getCell(x + 1, y) == Cell.Rock) {
+                                return pickUpRock(x + 1, y);
+                            }
+
+                            if (world.isSolid(x + 1, y)) {
+                                return dig(x + 1, y);
+                            }
+
+                            return right();
+                        }
+                    }
+                } else {
+                    const simRight = world.simulateRight(x, y);
+                    if (simRight !== null && (!simRight.falling || world.isSolid(x + 1, y - 3))) {
+                        return right();
+                    }
+                    if (world.isSolid(x + 1, y)) {
+                        if (world.isSolid(x, y + 1)) {
+                            return dig(x, y + 1);
+                        } else if (world.isRock(x + 1, y + 1)) {
+                            return pickUpRock(x + 1, y + 1);
+                        } else {
+                            return dig(x + 1, y + 1);
+                        }
+                    }
+                    return dig(x, y - 1);
+                }
+            }
+        }
+    },
+    {
+        id: "trencher",
+        run(self, others, world) {
+            const { x, y } = self.pos;
+
+            if (!("stage" in self.ctx)) {
+                const width = Math.round(1.1 ** (Math.random() ** 2 * 16) * 20);
+
+                self.ctx.stage = 0;
+                self.ctx.boundLeft = x;
+                self.ctx.boundRight = x + width;
+                self.ctx.boundRightWrapped = self.ctx.boundRight % world.width;
+            }
+
+            if (self.carryingRock) {
+                const crushable = others.find(o => o.pos.y == y - 1 && o.pos.x != x && world.isReachableFrom(x, y, o.pos.x, o.pos.y + 1));
+                if (crushable !== undefined) return dropRock(crushable.pos.x, crushable.pos.y + 1);
+            } else {
+                const rockUnderminable = others.find(o => world.isReachableFrom(x, y, o.pos.x, o.pos.y - 1) && (o.pos.x != x || o.pos.y != y) && world.getCell(o.pos.x, o.pos.y - 1) == Cell.Rock);
+                if (rockUnderminable !== undefined) return pickUpRock(rockUnderminable.pos.x, rockUnderminable.pos.y - 1);
+            }
+            const underminable = others.find(o => world.isReachableFrom(x, y, o.pos.x, o.pos.y - 1) && (o.pos.x != x || o.pos.y != y) && world.isSolid(o.pos.x, o.pos.y - 1) && !world.isRock(o.pos.x, o.pos.y - 1) && ![Cell.Stone, Cell.MossyStone, Cell.Bedrock, Cell.MossyBedrock].includes(world.getCell(o.pos.x, o.pos.y - 1)));
+            if (underminable !== undefined) return dig(underminable.pos.x, underminable.pos.y - 1);
+            const nearby = others.find(o => world.isReachableFrom(x, y, o.pos.x, o.pos.y));
+            if (nearby !== undefined) return biteByCreature(nearby.id);
+
+            if (self.ctx.stage == 0) {
+                if (self.fullness < 190 || self.hp < 20) {
+                    for (let oy = y + 1; oy >= y - 1; oy--) {
+                        for (let ox = x - 1; ox <= x + 1; ox++) {
+                            if ([Cell.SmallGrassTufts, Cell.LargeGrassTufts, Cell.GrassyDirt].includes(world.getCell(ox, oy)) && world.isReachableFrom(x, y, ox, oy)) {
+                                return eat(ox, oy);
+                            }
+                        }
+                    }
+                }
+            } else {
+                if (self.fullness < 190 || self.hp < 20) {
+                    for (let oy = y + 1; oy >= y - 1; oy--) {
+                        for (let ox = x - 1; ox <= x + 1; ox++) {
+                            if ([Cell.SmallGrassTufts, Cell.LargeGrassTufts].includes(world.getCell(ox, oy)) && world.isReachableFrom(x, y, ox, oy)) {
+                                return eat(ox, oy);
+                            }
+                        }
+                    }
+                }
+                if (self.fullness < 80 || self.hp < 10) {
+                    for (let oy = y + 1; oy >= y - 1; oy--) {
+                        for (let ox = x - 1; ox <= x + 1; ox++) {
+                            if (world.getCell(ox, oy) == Cell.GrassyDirt && world.isReachableFrom(x, y, ox, oy)) {
+                                return eat(ox, oy);
+                            }
+                        }
+                    }
+                }
+            }
+            if (self.fullness < 190) {
+                for (let oy = y + 1; oy >= y - 1; oy--) {
+                    for (let ox = x - 1; ox <= x + 1; ox++) {
+                        if ([Cell.MossyStone, Cell.MossyChippedStone, Cell.MossyBedrock].includes(world.getCell(ox, oy)) && world.isReachableFrom(x, y, ox, oy)) {
+                            return eat(ox, oy);
+                        }
+                    }
+                }
+            }
+
+            if (self.ctx.stage == 0) {
+                // Destroy the highest point in the trench bounds
+
+                let topSolidY = -Infinity;
+                let tsyXs = [];
+
+                for (let sx = self.ctx.boundLeft; sx <= self.ctx.boundRight; sx++) {
+                    const tsy = world.findTopSolidY(sx);
+
+                    if (tsy > topSolidY) {
+                        topSolidY = tsy;
+                        tsyXs = [sx];
+                    } else if (tsy == topSolidY) {
+                        tsyXs.push(sx);
+                    }
+                }
+
+                if (self.carryingRock) {
+                    if (x == (self.ctx.boundLeft + 1) % world.width) {
+                        if (self.ctx.noGoLeft) {
+                            delete self.ctx.noGoLeft;
+                        } else {
+                            if (world.isSolid(x - 1, y)) {
+                                if (world.isSolid(x, y + 1)) return dig(x, y + 1);
+                                if (world.isSolid(x - 1, y + 1)) return dig(x - 1, y + 1);
+                            }
+                            return left();
+                        }
+                    }
+                    if (x == (self.ctx.boundRight - 1 + world.width) % world.width) {
+                        if (self.ctx.noGoRight) {
+                            delete self.ctx.noGoRight;
+                        } else {
+                            if (world.isSolid(x + 1, y)) {
+                                if (world.isSolid(x, y + 1)) return dig(x, y + 1);
+                                if (world.isSolid(x + 1, y + 1)) return dig(x + 1, y + 1);
+                            }
+                            return right();
+                        }
+                    }
+                    if (x == self.ctx.boundLeft) {
+                        if (world.isReachableFrom(x, y, x - 1, y + 1) && !world.isSolid(x - 1, y + 1)) return dropRock(x - 1, y + 1);
+                        if (world.isReachableFrom(x, y, x - 1, y + 1) && !world.isRock(x - 1, y + 1) && !world.isRock(x - 1, y + 2)) return dig(x - 1, y + 1);
+                        if (world.isReachableFrom(x, y, x - 1, y) && !world.isSolid(x - 1, y)) return dropRock(x - 1, y);
+                        if (world.isReachableFrom(x, y, x - 1, y) && !world.isRock(x - 1, y) && !world.isRock(x - 1, y + 1)) return dig(x - 1, y);
+                        if (world.isReachableFrom(x, y, x - 1, y - 1) && !world.isSolid(x - 1, y + 1)) return dropRock(x - 1, y - 1);
+                        if (world.isReachableFrom(x, y, x - 1, y - 1) && !world.isRock(x - 1, y + 1) && !world.isRock(x - 1, y)) return dig(x - 1, y - 1);
+                        self.ctx.noGoLeft = true;
+                    }
+                    if (x == self.ctx.boundRightWrapped) {
+                        if (world.isReachableFrom(x, y, x + 1, y + 1) && !world.isSolid(x + 1, y + 1)) return dropRock(x + 1, y + 1);
+                        if (world.isReachableFrom(x, y, x + 1, y + 1) && !world.isRock(x + 1, y + 1) && !world.isRock(x + 1, y + 2)) return dig(x + 1, y + 1);
+                        if (world.isReachableFrom(x, y, x + 1, y) && !world.isSolid(x + 1, y)) return dropRock(x + 1, y);
+                        if (world.isReachableFrom(x, y, x + 1, y) && !world.isRock(x + 1, y) && !world.isRock(x + 1, y + 1)) return dig(x + 1, y);
+                        if (world.isReachableFrom(x, y, x + 1, y - 1) && !world.isSolid(x + 1, y + 1)) return dropRock(x + 1, y - 1);
+                        if (world.isReachableFrom(x, y, x + 1, y - 1) && !world.isRock(x + 1, y + 1) && !world.isRock(x + 1, y)) return dig(x + 1, y - 1);
+                        self.ctx.noGoRight = true;
+                    }
+                }
+
+                if (topSolidY <= world.groundHeight * 0.75 + 1) {
+                    self.ctx.stage = 1;
+                } else {
+                    for (let ox = -1; ox <= 1; ox++) {
+                        if (x == self.ctx.boundLeft && ox == -1 || x == self.ctx.boundRightWrapped && ox == 1) continue;
+
+                        if (world.isSolid(x + ox, topSolidY) && world.isReachableFrom(x, y, x + ox, topSolidY)) {
+                            if (world.isRock(x + ox, topSolidY)) {
+                                if (self.carryingRock) {
+                                    if (world.isReachableFrom(x, y, x - 1, y - 1) && !world.isSolid(x - 1, y - 1)) return dropRock(x - 1, y - 1);
+                                    if (world.isReachableFrom(x, y, x + 1, y - 1) && !world.isSolid(x + 1, y - 1)) return dropRock(x + 1, y - 1);
+                                    if (world.isReachableFrom(x, y, x - 1, y - 1) && !world.isRock(x - 1, y - 1)) return dig(x - 1, y - 1);
+                                    if (world.isReachableFrom(x, y, x + 1, y - 1) && !world.isRock(x + 1, y - 1)) return dig(x + 1, y - 1);
+                                    if (self.hp > 10) return dropRock(x, y); // ouch
+                                }
+                                return pickUpRock(x + ox, topSolidY);
+                            } else {
+                                return dig(x + ox, topSolidY);
+                            }
+                        }
+                    }
+
+                    const tx = tsyXs.sort((a, b) => Math.abs(a - x) - Math.abs(b - x))[0];
+
+                    if (tx < x) {
+                        if (world.isSolid(x - 1, y)) {
+                            if (world.isSolid(x, y + 1)) return dig(x, y + 1);
+                            if (world.isSolid(x - 1, y + 1)) {
+                                if (world.getCell(x - 1, y + 1) == Cell.Rock) {
+                                    if (self.carryingRock) {
+                                        if (!world.isRock(x - 1, y)) return dig(x - 1, y);
+                                        if (!world.isSolid(x + 1, y)) return dropRock(x + 1, y);
+                                        if (self.hp > 10) return dropRock(x, y); // ouch
+                                    }
+                                    return pickUpRock(x - 1, y + 1);
+                                }
+                                return dig(x - 1, y + 1);
+                            }
+                        } else if (!world.isSolid(x - 1, y - 1)) {
+                            if (world.findTopSolidY(x - 1) < y - 3) {
+                                self.ctx.boundLeft = x;
+                                return null;
+                            }
+
+                            if (world.isRock(x, y - 1)) {
+                                if (self.carryingRock) {
+                                    if (world.isReachableFrom(x, y, x - 1, y - 1) && !world.isSolid(x - 1, y - 1)) return dropRock(x - 1, y - 1);
+                                    if (world.isReachableFrom(x, y, x + 1, y - 1) && !world.isSolid(x + 1, y - 1)) return dropRock(x + 1, y - 1);
+                                    if (world.isReachableFrom(x, y, x - 1, y - 1) && !world.isRock(x - 1, y - 1)) return dig(x - 1, y - 1);
+                                    if (world.isReachableFrom(x, y, x + 1, y - 1) && !world.isRock(x + 1, y - 1)) return dig(x + 1, y - 1);
+                                    if (world.isReachableFrom(x, y, x - 1, y) && !world.isSolid(x - 1, y)) return dropRock(x - 1, y);
+                                    if (world.isReachableFrom(x, y, x + 1, y) && !world.isSolid(x + 1, y)) return dropRock(x + 1, y);
+                                    if (world.isReachableFrom(x, y, x - 1, y) && !world.isRock(x - 1, y)) return dig(x - 1, y);
+                                    if (world.isReachableFrom(x, y, x + 1, y) && !world.isRock(x + 1, y)) return dig(x + 1, y);
+                                    if (self.hp > 10) return dropRock(x, y); // ouch
+                                }
+                                return pickUpRock(x, y - 1);
+                            } else {
+                                return dig(x, y - 1);
+                            }
+                        }
+                        return left();
+                    } else if (tx > x) {
+                        if (world.isSolid(x + 1, y)) {
+                            if (world.isSolid(x, y + 1)) return dig(x, y + 1);
+                            if (world.isSolid(x + 1, y + 1)) {
+                                if (world.getCell(x + 1, y + 1) == Cell.Rock) {
+                                    if (self.carryingRock) {
+                                        if (!world.isRock(x + 1, y)) return dig(x + 1, y);
+                                        if (!world.isSolid(x - 1, y)) return dropRock(x - 1, y);
+                                        if (self.hp > 10) return dropRock(x, y); // ouch
+                                    }
+                                    return pickUpRock(x + 1, y + 1);
+                                }
+                                return dig(x + 1, y + 1);
+                            }
+                        } else if (!world.isSolid(x + 1, y - 1)) {
+                            if (world.findTopSolidY(x + 1) < y - 3) {
+                                self.ctx.boundRight = x < self.ctx.boundLeft ? x + world.width : x;
+                                self.ctx.boundRightWrapped = x;
+                                return null;
+                            }
+
+                            if (world.isRock(x, y - 1)) {
+                                if (self.carryingRock) {
+                                    if (world.isReachableFrom(x, y, x - 1, y - 1) && !world.isSolid(x - 1, y - 1)) return dropRock(x - 1, y - 1);
+                                    if (world.isReachableFrom(x, y, x + 1, y - 1) && !world.isSolid(x + 1, y - 1)) return dropRock(x + 1, y - 1);
+                                    if (world.isReachableFrom(x, y, x - 1, y - 1) && !world.isRock(x - 1, y - 1)) return dig(x - 1, y - 1);
+                                    if (world.isReachableFrom(x, y, x + 1, y - 1) && !world.isRock(x + 1, y - 1)) return dig(x + 1, y - 1);
+                                    if (world.isReachableFrom(x, y, x - 1, y) && !world.isSolid(x - 1, y)) return dropRock(x - 1, y);
+                                    if (world.isReachableFrom(x, y, x + 1, y) && !world.isSolid(x + 1, y)) return dropRock(x + 1, y);
+                                    if (world.isReachableFrom(x, y, x - 1, y) && !world.isRock(x - 1, y)) return dig(x - 1, y);
+                                    if (world.isReachableFrom(x, y, x + 1, y) && !world.isRock(x + 1, y)) return dig(x + 1, y);
+                                    if (self.hp > 10) return dropRock(x, y); // ouch
+                                }
+                                return pickUpRock(x, y - 1);
+                            } else {
+                                return dig(x, y - 1);
+                            }
+                        }
+                        return right();
+                    } else {
+                        if (world.isSolid(x, y + 1)) return dig(x, y + 1);
+                        if (world.isSolid(x - 1, y + 1) && world.isSolid(x + 1, y + 1)) return climbUp();
+                        if (world.isSolid(x - 1, y)) {
+                            if (world.isSolid(x, y + 1)) return dig(x, y + 1);
+                            if (world.isSolid(x - 1, y + 1)) return dig(x - 1, y + 1);
+                        } else if (!world.isSolid(x - 1, y - 1)) {
+                            if (world.findTopSolidY(x - 1) < y - 3) {
+                                self.ctx.boundLeft = x;
+                                return null;
+                            }
+
+                            if (world.isRock(x, y - 1)) {
+                                if (self.carryingRock) {
+                                    if (world.isReachableFrom(x, y, x - 1, y - 1) && !world.isSolid(x - 1, y - 1)) return dropRock(x - 1, y - 1);
+                                    if (world.isReachableFrom(x, y, x + 1, y - 1) && !world.isSolid(x + 1, y - 1)) return dropRock(x + 1, y - 1);
+                                    if (world.isReachableFrom(x, y, x - 1, y - 1) && !world.isRock(x - 1, y - 1)) return dig(x - 1, y - 1);
+                                    if (world.isReachableFrom(x, y, x + 1, y - 1) && !world.isRock(x + 1, y - 1)) return dig(x + 1, y - 1);
+                                    if (world.isReachableFrom(x, y, x - 1, y) && !world.isSolid(x - 1, y)) return dropRock(x - 1, y);
+                                    if (world.isReachableFrom(x, y, x + 1, y) && !world.isSolid(x + 1, y)) return dropRock(x + 1, y);
+                                    if (world.isReachableFrom(x, y, x - 1, y) && !world.isRock(x - 1, y)) return dig(x - 1, y);
+                                    if (world.isReachableFrom(x, y, x + 1, y) && !world.isRock(x + 1, y)) return dig(x + 1, y);
+                                    if (self.hp > 10) return dropRock(x, y); // ouch
+                                }
+                                return pickUpRock(x, y - 1);
+                            } else {
+                                return dig(x, y - 1);
+                            }
+                        }
+                        return left();
+                    }
+                }
+            }
+
+            if (self.ctx.stage == 1 && x == self.ctx.boundLeft) {
+                self.ctx.stage = 2;
+            } else if (self.ctx.stage == 2 && x == self.ctx.boundRightWrapped) {
+                self.ctx.stage = 1;
+            }
+
+            if (self.ctx.stage == 1) return left();
+            return right();
+        }
+    },
 ];
