@@ -20,7 +20,6 @@ export interface LastMove {
 
 export interface Creature {
     id: number;
-    isPlayer?: boolean;
     pos: { x: number, y: number };
     hp: number;
     fullness: number;
@@ -44,7 +43,6 @@ const FALL_BASE_DAMAGE = 1;
 const FALL_PER_UNIT_DAMAGE = 2;
 const BITE_DAMAGE = 5;
 
-const FULLNESS_LOSS_PER_TICK = 1;
 const SMALL_GRASS_TUFTS_FULLNESS = 25;
 const LARGE_GRASS_TUFTS_FULLNESS = 25;
 const GRASSY_DIRT_FULLNESS = 25;
@@ -97,10 +95,13 @@ export class Controller {
 
     private debug: boolean;
 
-    private constructor(world: World, creatures: Creature[], debug: boolean = false) {
+    private superHotPlayer: Creature | null;
+
+    private constructor(world: World, creatures: Creature[], debug: boolean, superHotPlayer: Creature | null) {
         this.world = world;
         this.creatures = creatures;
         this.debug = debug;
+        this.superHotPlayer = superHotPlayer;
     }
 
     public static buildController(bots: Bot[], copies: number, debug: boolean = false) {
@@ -128,7 +129,7 @@ export class Controller {
 
         creatures.sort((x, y) => x.id - y.id);
 
-        return new Controller(world, creatures, debug);
+        return new Controller(world, creatures, debug, null);
     }
 
     public static buildSuperHotController(moveBox: { move: Move | null }, bots: Bot[], copies: number, debug: boolean = false) {
@@ -142,7 +143,7 @@ export class Controller {
             isPlayer: true,
             pos: this.findCreatureSpawnPos(world, creatures),
             hp: SPAWN_HIT_POINTS,
-            fullness: SPAWN_FULLNESS,
+            fullness: SPAWN_FULLNESS - 1,
             fallDist: 0,
             falling: false,
             carryingRock: false,
@@ -175,7 +176,7 @@ export class Controller {
 
         creatures.sort((x, y) => x.id - y.id);
 
-        return new Controller(world, creatures, debug);
+        return new Controller(world, creatures, debug, creatures[0]);
     }
 
     public getWorld(): World {
@@ -222,25 +223,16 @@ export class Controller {
         }
     }
 
-    public tick() {
+    public tick(): boolean | null {
         const startTime = performance.now();
 
         const hungerCountFrac = 1.1 ** Math.floor(Math.max(this.tickCtr - HUNGER_INCREASE_BASE, 0) / HUNGER_INCREASE_TICK_INT);
         const hungerCount = Math.floor(hungerCountFrac) + (Math.random() < hungerCountFrac - Math.floor(hungerCountFrac) ? 1 : 0);
 
+        let playerMoveOut: boolean | null = null;
+
         creatures: for (let i = 0; i < this.creatures.length; i++) {
             const creature = this.creatures[i];
-
-            for (let j = 0; j < hungerCount; j++) {
-                if (creature.fullness > 0) {
-                    creature.fullness -= FULLNESS_LOSS_PER_TICK;
-                } else {
-                    if (this.damageCreature(creature, FULLNESS_LOSS_PER_TICK, { type: "hunger" }) != -1) {
-                        i--;
-                        continue creatures;
-                    }
-                }
-            }
 
             if (!this.world.isSolid(creature.pos.x, creature.pos.y - 1)) {
                 if (creature.falling || !this.world.isSolid(creature.pos.x - 1, creature.pos.y) || !this.world.isSolid(creature.pos.x + 1, creature.pos.y)) {
@@ -261,13 +253,36 @@ export class Controller {
                 creature.fallDist = 0;
             }
 
-            const move = this.runCreature(creature);
+            if (creature === this.superHotPlayer) {
+                const move = this.runCreature(creature);
 
-            creature.lastMoves!.push({ tick: this.tickCtr, pos: { x: creature.pos.x, y: creature.pos.y }, move });
+                creature.lastMoves!.push({ tick: this.tickCtr, pos: { x: creature.pos.x, y: creature.pos.y }, move });
 
-            const iBox = { i };
-            this.runMove(move, creature, iBox, creature.isPlayer ?? false);
-            i = iBox.i;
+                const iBox = { i };
+                if (!(playerMoveOut = this.runMove(move, creature, iBox, true))) return false;
+                i = iBox.i;
+            }
+
+            for (let j = 0; j < hungerCount; j++) {
+                if (creature.fullness > 0) {
+                    creature.fullness--;
+                } else {
+                    if (this.damageCreature(creature, 1, { type: "hunger" }) != -1) {
+                        i--;
+                        continue creatures;
+                    }
+                }
+            }
+
+            if (creature !== this.superHotPlayer) {
+                const move = this.runCreature(creature);
+
+                creature.lastMoves!.push({ tick: this.tickCtr, pos: { x: creature.pos.x, y: creature.pos.y }, move });
+
+                const iBox = { i };
+                this.runMove(move, creature, iBox, false);
+                i = iBox.i;
+            }
         }
 
         const maxY = this.world.getGrid().length;
@@ -430,6 +445,8 @@ export class Controller {
 
         this.tickCtr++;
         this.tickTimes.push(performance.now() - startTime);
+
+        return playerMoveOut;
     }
 
     private runCreature(creature: Creature): Move {
