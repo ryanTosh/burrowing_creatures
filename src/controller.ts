@@ -534,7 +534,7 @@ export class Controller {
                     case Cell.MossyChippedStone: {
                         if (safe) {
                             if (move.pos.y == creature.pos.y && !this.world.isSolid(creature.pos.x, creature.pos.y - 1)) return false;
-                            if (move.pos.x == creature.pos.x && move.pos.y == creature.pos.y - 1 && !this.world.isSolid(creature.pos.x, creature.pos.y - 1)) return false;
+                            if (move.pos.x == creature.pos.x && move.pos.y == creature.pos.y - 1 && !this.world.isSolid(creature.pos.x, creature.pos.y - 2)) return false;
                         }
 
                         this.world.setCell(move.pos.x, move.pos.y, Cell.Empty);
@@ -629,6 +629,8 @@ export class Controller {
                     creature.hp = Math.min(creature.hp + MOSS_HIT_POINTS, MAX_HIT_POINTS);
                     creature.fullness = Math.min(creature.fullness + MOSS_FULLNESS, MAX_FULLNESS);
                     this.world.setCell(move.pos.x, move.pos.y, Cell.Bedrock);
+                } else {
+                    return false;
                 }
 
                 return true;
