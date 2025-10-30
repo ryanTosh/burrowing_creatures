@@ -611,35 +611,49 @@ export class Controller {
 
                 const cell = this.world.getCell(move.pos.x, move.pos.y);
 
-                if (cell == Cell.SmallGrassTufts) {
-                    creature.hp = Math.min(creature.hp + SMALL_GRASS_TUFTS_HIT_POINTS, MAX_HIT_POINTS);
-                    creature.fullness = Math.min(creature.fullness + SMALL_GRASS_TUFTS_FULLNESS, MAX_FULLNESS);
-                    this.world.setCell(move.pos.x, move.pos.y, Cell.Empty);
-                } else if (cell == Cell.LargeGrassTufts) {
-                    creature.hp = Math.min(creature.hp + LARGE_GRASS_TUFTS_HIT_POINTS, MAX_HIT_POINTS);
-                    creature.fullness = Math.min(creature.fullness + LARGE_GRASS_TUFTS_FULLNESS, MAX_FULLNESS);
-                    this.world.setCell(move.pos.x, move.pos.y, Cell.SmallGrassTufts);
-                } else if (cell == Cell.GrassyDirt) {
-                    creature.hp = Math.min(creature.hp + GRASSY_DIRT_HIT_POINTS, MAX_HIT_POINTS);
-                    creature.fullness = Math.min(creature.fullness + GRASSY_DIRT_FULLNESS, MAX_FULLNESS);
-                    this.world.setCell(move.pos.x, move.pos.y, Cell.BarrenDirt);
-                } else if (cell == Cell.MossyStone) {
-                    creature.hp = Math.min(creature.hp + MOSS_HIT_POINTS, MAX_HIT_POINTS);
-                    creature.fullness = Math.min(creature.fullness + MOSS_FULLNESS, MAX_FULLNESS);
-                    this.world.setCell(move.pos.x, move.pos.y, Cell.Stone);
-                } else if (cell == Cell.MossyChippedStone) {
-                    creature.hp = Math.min(creature.hp + MOSS_HIT_POINTS, MAX_HIT_POINTS);
-                    creature.fullness = Math.min(creature.fullness + MOSS_FULLNESS, MAX_FULLNESS);
-                    this.world.setCell(move.pos.x, move.pos.y, Cell.ChippedStone);
-                } else if (cell == Cell.MossyBedrock) {
-                    creature.hp = Math.min(creature.hp + MOSS_HIT_POINTS, MAX_HIT_POINTS);
-                    creature.fullness = Math.min(creature.fullness + MOSS_FULLNESS, MAX_FULLNESS);
-                    this.world.setCell(move.pos.x, move.pos.y, Cell.Bedrock);
-                } else {
-                    return false;
+                const foods: { [cell in Cell]?: { hp: number, fullness: number, setCell: Cell } } = {
+                    [Cell.SmallGrassTufts]: {
+                        hp: SMALL_GRASS_TUFTS_HIT_POINTS,
+                        fullness: SMALL_GRASS_TUFTS_FULLNESS,
+                        setCell: Cell.Empty,
+                    },
+                    [Cell.LargeGrassTufts]: {
+                        hp: LARGE_GRASS_TUFTS_HIT_POINTS,
+                        fullness: LARGE_GRASS_TUFTS_FULLNESS,
+                        setCell: Cell.SmallGrassTufts,
+                    },
+                    [Cell.GrassyDirt]: {
+                        hp: GRASSY_DIRT_HIT_POINTS,
+                        fullness: GRASSY_DIRT_FULLNESS,
+                        setCell: Cell.BarrenDirt,
+                    },
+                    [Cell.MossyStone]: {
+                        hp: MOSS_HIT_POINTS,
+                        fullness: MOSS_FULLNESS,
+                        setCell: Cell.Stone,
+                    },
+                    [Cell.MossyChippedStone]: {
+                        hp: MOSS_HIT_POINTS,
+                        fullness: MOSS_FULLNESS,
+                        setCell: Cell.ChippedStone,
+                    },
+                    [Cell.MossyBedrock]: {
+                        hp: MOSS_HIT_POINTS,
+                        fullness: MOSS_FULLNESS,
+                        setCell: Cell.Bedrock,
+                    },
+                };
+
+                const food = foods[cell];
+                if (food !== undefined) {
+                    creature.hp = Math.min(creature.hp + food.hp, MAX_HIT_POINTS);
+                    creature.fullness = Math.min(creature.fullness + food.fullness, MAX_FULLNESS);
+                    this.world.setCell(move.pos.x, move.pos.y, food.setCell);
+
+                    return true;
                 }
 
-                return true;
+                return false;
             }
             case "bite": {
                 if ("victim" in move) {
