@@ -121,7 +121,7 @@ if (window.superHot) {
     // Unmapped: rock interactions, bite
 
     let controller = Controller.buildSuperHotController(moveBox, sampleBots, 4);
-    const graphics = new Graphics(canvas, window.innerWidth, window.innerHeight, controller, controls);
+    const graphics = new Graphics(canvas, window.innerWidth, window.innerHeight, controller, controls, true);
 
     (document.getElementById("sidebar") as HTMLDivElement).style.display = "none";
 
@@ -290,7 +290,7 @@ if (window.superHot) {
         }
     ], canvas);
     let controller = Controller.buildController(sampleBots, 1);
-    const graphics = new Graphics(canvas, Math.floor(window.innerWidth * (1 - 0.0625) - 120 - 180), window.innerHeight, controller, controls);
+    const graphics = new Graphics(canvas, Math.floor(window.innerWidth * (1 - 0.0625) - 120 - 180), window.innerHeight, controller, controls, false);
 
     let tickInterval: number | null = null;
 

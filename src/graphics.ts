@@ -47,7 +47,9 @@ export class Graphics {
 
     private frameTimes: number[] = [];
 
-    constructor(canvas: HTMLCanvasElement, width: number, height: number, controller: Controller, controls: Controls) {
+    private isSuperHot: boolean;
+
+    constructor(canvas: HTMLCanvasElement, width: number, height: number, controller: Controller, controls: Controls, isSuperHot: boolean) {
         this.canvas = canvas;
 
         this.width = width;
@@ -69,6 +71,8 @@ export class Graphics {
 
         this.sidebar.setController(this.controller);
         this.updateSidebar();
+
+        this.isSuperHot = isSuperHot;
     }
 
     public resize(width: number, height: number) {
@@ -376,6 +380,30 @@ export class Graphics {
             for (let i = 0; i < dbgStrs.length; i++) {
                 this.ctx.fillText(dbgStrs[i], 16, y);
                 if (i != dbgStrs.length - 1) {
+                    y += measures[i].fontBoundingBoxDescent + measures[i + 1].fontBoundingBoxAscent;
+                }
+            }
+        }
+
+        if (this.isSuperHot) {
+            const stillAlive: string[] = [
+                "Still alive: " + this.controller.getCreatures().filter(c => c !== this.controller.getSuperHotPlayer()).length + " others"
+            ];
+
+            const stillAliveStrs = stillAlive.join("\n").split("\n");
+
+            const measures = stillAliveStrs.map(s => this.ctx.measureText(s));
+
+            const width = measures.reduce((w, m) => Math.max(w, m.width), 0);
+            const height = measures.reduce((h, m) => h + m.fontBoundingBoxAscent + m.fontBoundingBoxDescent, 0);
+
+            this.ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+            this.ctx.fillRect(this.width - 8 - (width + 16), 8, width + 16, height + 12);
+            this.ctx.fillStyle = "#ffffff";
+            let y = 16;
+            for (let i = 0; i < stillAliveStrs.length; i++) {
+                this.ctx.fillText(stillAliveStrs[i], this.width - (width + 16), y);
+                if (i != stillAliveStrs.length - 1) {
                     y += measures[i].fontBoundingBoxDescent + measures[i + 1].fontBoundingBoxAscent;
                 }
             }

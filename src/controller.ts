@@ -199,6 +199,10 @@ export class Controller {
         return this.tickTimes;
     }
 
+    public getSuperHotPlayer(): Creature | null {
+        return this.superHotPlayer;
+    }
+
     private static findCreatureSpawnPos(world: World, creatures: Creature[]) {
         const width = world.width;
 
