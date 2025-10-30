@@ -4,6 +4,11 @@ import { Controls } from "./controls";
 import { Graphics } from "./graphics";
 import { sampleBots } from "./sample_bots";
 
+export interface MoveBox {
+    resolve: ((move: Move) => void) | null;
+    safe: boolean;
+}
+
 declare global {
     interface Window {
         superHot: boolean;
@@ -42,7 +47,7 @@ window.runCompetitionController = (bots: Bot[], copies: number, debug: boolean =
 const canvas = document.getElementById("display") as HTMLCanvasElement;
 
 if (window.superHot) {
-    const moveBox: { resolve?: (move: Move) => void } = {};
+    const moveBox: MoveBox = { resolve: null, safe: true };
     const controls = new Controls([
         {
             id: "still",
@@ -113,6 +118,11 @@ if (window.superHot) {
             id: "mode_bite",
             keys: ["Digit2"],
             mouseBtns: []
+        },
+        {
+            id: "toggle_safe",
+            keys: ["KeyG"],
+            mouseBtns: []
         }
     ], canvas);
 
@@ -137,7 +147,7 @@ if (window.superHot) {
 
         const { x, y } = player.pos;
         const modeType = mode == "rock" ? controller.getWorld().isSolid(x, y) ? "pick_up" : "drop" : mode;
-        if (moveBox.resolve !== undefined) moveBox.resolve(controls.isBindDown("shift") ? { type: modeType, pos: { x: x, y: y } } : null);
+        if (moveBox.resolve !== null) moveBox.resolve(controls.isBindDown("shift") ? { type: modeType, pos: { x: x, y: y } } : null);
     });
     controls.onBindDown("up", () => {
         const player = controller.getCreatures().find(c => c.id == 0);
@@ -145,7 +155,7 @@ if (window.superHot) {
 
         const { x, y } = player.pos;
         const modeType = mode == "rock" ? controller.getWorld().isSolid(x, y + 1) ? "pick_up" : "drop" : mode;
-        if (moveBox.resolve !== undefined) moveBox.resolve(controls.isBindDown("shift") ? { type: modeType, pos: { x: x, y: y + 1 } } : climbUp());
+        if (moveBox.resolve !== null) moveBox.resolve(controls.isBindDown("shift") ? { type: modeType, pos: { x: x, y: y + 1 } } : climbUp());
     });
     controls.onBindDown("down", () => {
         const player = controller.getCreatures().find(c => c.id == 0);
@@ -153,7 +163,7 @@ if (window.superHot) {
 
         const { x, y } = player.pos;
         const modeType = mode == "rock" ? controller.getWorld().isSolid(x, y - 1) ? "pick_up" : "drop" : mode;
-        if (moveBox.resolve !== undefined) moveBox.resolve(controls.isBindDown("shift") ? { type: modeType, pos: { x: x, y: y - 1 } } : climbDown());
+        if (moveBox.resolve !== null) moveBox.resolve(controls.isBindDown("shift") ? { type: modeType, pos: { x: x, y: y - 1 } } : climbDown());
     });
     controls.onBindDown("left", () => {
         const player = controller.getCreatures().find(c => c.id == 0);
@@ -161,7 +171,7 @@ if (window.superHot) {
 
         const { x, y } = player.pos;
         const modeType = mode == "rock" ? controller.getWorld().isSolid(x - 1, y) ? "pick_up" : "drop" : mode;
-        if (moveBox.resolve !== undefined) moveBox.resolve(controls.isBindDown("shift") ? { type: modeType, pos: { x: x - 1, y: y } } : left());
+        if (moveBox.resolve !== null) moveBox.resolve(controls.isBindDown("shift") ? { type: modeType, pos: { x: x - 1, y: y } } : left());
     });
     controls.onBindDown("right", () => {
         const player = controller.getCreatures().find(c => c.id == 0);
@@ -169,7 +179,7 @@ if (window.superHot) {
 
         const { x, y } = player.pos;
         const modeType = mode == "rock" ? controller.getWorld().isSolid(x + 1, y) ? "pick_up" : "drop" : mode;
-        if (moveBox.resolve !== undefined) moveBox.resolve(controls.isBindDown("shift") ? { type: modeType, pos: { x: x + 1, y: y } } : right());
+        if (moveBox.resolve !== null) moveBox.resolve(controls.isBindDown("shift") ? { type: modeType, pos: { x: x + 1, y: y } } : right());
     });
     controls.onBindDown("-1_-1", () => {
         if (!controls.isBindDown("shift")) return;
@@ -179,7 +189,7 @@ if (window.superHot) {
 
         const { x, y } = player.pos;
         const modeType = mode == "rock" ? controller.getWorld().isSolid(x - 1, y - 1) ? "pick_up" : "drop" : mode;
-        if (moveBox.resolve !== undefined) moveBox.resolve({ type: modeType, pos: { x: x - 1, y: y - 1 } });
+        if (moveBox.resolve !== null) moveBox.resolve({ type: modeType, pos: { x: x - 1, y: y - 1 } });
     });
     controls.onBindDown("1_-1", () => {
         if (!controls.isBindDown("shift")) return;
@@ -189,7 +199,7 @@ if (window.superHot) {
 
         const { x, y } = player.pos;
         const modeType = mode == "rock" ? controller.getWorld().isSolid(x + 1, y - 1) ? "pick_up" : "drop" : mode;
-        if (moveBox.resolve !== undefined) moveBox.resolve({ type: modeType, pos: { x: x + 1, y: y - 1 } });
+        if (moveBox.resolve !== null) moveBox.resolve({ type: modeType, pos: { x: x + 1, y: y - 1 } });
     });
     controls.onBindDown("-1_1", () => {
         if (!controls.isBindDown("shift")) return;
@@ -199,7 +209,7 @@ if (window.superHot) {
 
         const { x, y } = player.pos;
         const modeType = mode == "rock" ? controller.getWorld().isSolid(x - 1, y + 1) ? "pick_up" : "drop" : mode;
-        if (moveBox.resolve !== undefined) moveBox.resolve({ type: modeType, pos: { x: x - 1, y: y + 1 } });
+        if (moveBox.resolve !== null) moveBox.resolve({ type: modeType, pos: { x: x - 1, y: y + 1 } });
     });
     controls.onBindDown("1_1", () => {
         if (!controls.isBindDown("shift")) return;
@@ -209,7 +219,7 @@ if (window.superHot) {
 
         const { x, y } = player.pos;
         const modeType = mode == "rock" ? controller.getWorld().isSolid(x + 1, y + 1) ? "pick_up" : "drop" : mode;
-        if (moveBox.resolve !== undefined) moveBox.resolve({ type: modeType, pos: { x: x + 1, y: y + 1 } });
+        if (moveBox.resolve !== null) moveBox.resolve({ type: modeType, pos: { x: x + 1, y: y + 1 } });
     });
     controls.onBindDown("mode_dig", () => {
         mode = "dig";
@@ -222,6 +232,9 @@ if (window.superHot) {
     });
     controls.onBindDown("mode_bite", () => {
         mode = "bite";
+    });
+    controls.onBindDown("toggle_safe", () => {
+        moveBox.safe = !moveBox.safe;
     });
 
     window.addEventListener("resize", () => {

@@ -1,3 +1,4 @@
+import { MoveBox } from ".";
 import { Bot } from "./bot_interface";
 import { Cell, World } from "./world";
 
@@ -96,12 +97,14 @@ export class Controller {
     private debug: boolean;
 
     private superHotPlayer: Creature | null;
+    private superHotMoveBox: MoveBox | null;
 
-    private constructor(world: World, creatures: Creature[], debug: boolean, superHotPlayer: Creature | null) {
+    private constructor(world: World, creatures: Creature[], debug: boolean, superHotPlayer: Creature | null, superHotMoveBox: MoveBox | null) {
         this.world = world;
         this.creatures = creatures;
         this.debug = debug;
         this.superHotPlayer = superHotPlayer;
+        this.superHotMoveBox = superHotMoveBox;
     }
 
     public static buildController(bots: Bot[], copies: number, debug: boolean = false) {
@@ -129,10 +132,10 @@ export class Controller {
 
         creatures.sort((x, y) => x.id - y.id);
 
-        return new Controller(world, creatures, debug, null);
+        return new Controller(world, creatures, debug, null, null);
     }
 
-    public static buildSuperHotController(moveBox: { resolve?: (move: Move) => void }, bots: Bot[], copies: number, debug: boolean = false) {
+    public static buildSuperHotController(moveBox: MoveBox, bots: Bot[], copies: number, debug: boolean = false) {
         const world = World.buildWorld((bots.length * copies + 1) * WIDTH_PER_BOT, WORLD_SETTINGS);
         const creatures: Creature[] = new Array(bots.length * copies + 1);
 
@@ -175,7 +178,7 @@ export class Controller {
 
         creatures.sort((x, y) => x.id - y.id);
 
-        return new Controller(world, creatures, debug, creatures[0]);
+        return new Controller(world, creatures, debug, creatures[0], moveBox);
     }
 
     public getWorld(): World {
@@ -274,7 +277,7 @@ export class Controller {
                     creature.lastMoves!.push({ tick: this.tickCtr, pos: { x: creature.pos.x, y: creature.pos.y }, move });
 
                     const iBox = { i };
-                    playerMoveOut = this.runMove(move, creature, iBox, true);
+                    playerMoveOut = this.runMove(move, creature, iBox, this.superHotMoveBox!.safe);
                     i = iBox.i;
                 } while (playerMoveOut === false);
             } else {
