@@ -1,10 +1,13 @@
 import { Creature, Move } from "./controller";
 import { World } from "./world";
 
-export interface Bot {
+export type Bot = {
     id: string;
     run: (self: Creature, others: Creature[], world: World, tickCtr: number) => Move;
-}
+} | {
+    id: string;
+    runPromise: (self: Creature, others: Creature[], world: World, tickCtr: number) => Promise<Move>;
+};
 
 export function left(): Move {
     return { type: "left" };

@@ -15,7 +15,7 @@ export function isValidTarget(creature: Creature, pos: { x: number, y: number },
 export interface LastMove {
     tick: number;
     pos: { x: number, y: number };
-    move: Move | null;
+    move: Move;
 }
 
 export interface Creature {
@@ -106,7 +106,7 @@ export class Controller {
 
     public static buildController(bots: Bot[], copies: number, debug: boolean = false) {
         const world = World.buildWorld(bots.length * copies * WIDTH_PER_BOT, WORLD_SETTINGS);
-        const creatures = new Array(bots.length * copies);
+        const creatures: Creature[] = new Array(bots.length * copies);
 
         const ids = [...new Array(bots.length * copies).keys()];
 
@@ -132,25 +132,24 @@ export class Controller {
         return new Controller(world, creatures, debug, null);
     }
 
-    public static buildSuperHotController(moveBox: { move: Move | null }, bots: Bot[], copies: number, debug: boolean = false) {
+    public static buildSuperHotController(moveBox: { resolve?: (move: Move) => void }, bots: Bot[], copies: number, debug: boolean = false) {
         const world = World.buildWorld((bots.length * copies + 1) * WIDTH_PER_BOT, WORLD_SETTINGS);
-        const creatures = new Array(bots.length * copies + 1);
+        const creatures: Creature[] = new Array(bots.length * copies + 1);
 
         const ids = [...new Array(bots.length * copies)].map((_, i) => i + 1);
 
         creatures[0] = {
             id: 0,
-            isPlayer: true,
             pos: this.findCreatureSpawnPos(world, creatures),
             hp: SPAWN_HIT_POINTS,
-            fullness: SPAWN_FULLNESS - 1,
+            fullness: SPAWN_FULLNESS,
             fallDist: 0,
             falling: false,
             carryingRock: false,
             bot: {
                 id: "__player__",
-                run() {
-                    return moveBox.move;
+                async runPromise() {
+                    return await new Promise(r => (moveBox.resolve = r));
                 }
             },
             ctx: {},
@@ -227,7 +226,7 @@ export class Controller {
         }
     }
 
-    public tick(): boolean | null {
+    public async tick(): Promise<boolean | null> {
         const startTime = performance.now();
 
         const hungerCountFrac = 1.1 ** Math.floor(Math.max(this.tickCtr - HUNGER_INCREASE_BASE, 0) / HUNGER_INCREASE_TICK_INT);
@@ -257,16 +256,6 @@ export class Controller {
                 creature.fallDist = 0;
             }
 
-            if (creature === this.superHotPlayer) {
-                const move = this.runCreature(creature);
-
-                creature.lastMoves!.push({ tick: this.tickCtr, pos: { x: creature.pos.x, y: creature.pos.y }, move });
-
-                const iBox = { i };
-                if (!(playerMoveOut = this.runMove(move, creature, iBox, true))) return false;
-                i = iBox.i;
-            }
-
             for (let j = 0; j < hungerCount; j++) {
                 if (creature.fullness > 0) {
                     creature.fullness--;
@@ -278,15 +267,13 @@ export class Controller {
                 }
             }
 
-            if (creature !== this.superHotPlayer) {
-                const move = this.runCreature(creature);
+            const move = await this.runCreature(creature);
 
-                creature.lastMoves!.push({ tick: this.tickCtr, pos: { x: creature.pos.x, y: creature.pos.y }, move });
+            creature.lastMoves!.push({ tick: this.tickCtr, pos: { x: creature.pos.x, y: creature.pos.y }, move });
 
-                const iBox = { i };
-                this.runMove(move, creature, iBox, false);
-                i = iBox.i;
-            }
+            const iBox = { i };
+            this.runMove(move, creature, iBox, false);
+            i = iBox.i;
         }
 
         const maxY = this.world.getGrid().length;
@@ -453,7 +440,7 @@ export class Controller {
         return playerMoveOut;
     }
 
-    private runCreature(creature: Creature): Move {
+    private async runCreature(creature: Creature): Promise<Move> {
         const self = { ...creature };
         delete self.bot;
         const others = this.creatures.filter(c => c != creature).map(c => {
@@ -466,7 +453,7 @@ export class Controller {
         let move;
 
         try {
-            move = creature.bot!.run(self, others, this.world.clone(), this.tickCtr);
+            move = "run" in creature.bot! ? creature.bot!.run(self, others, this.world.clone(), this.tickCtr) : await creature.bot!.runPromise(self, others, this.world.clone(), this.tickCtr);
 
             if (move !== null) {
                 if (move === undefined) throw new Error("Invalid move: `undefined`");
