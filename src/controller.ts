@@ -267,13 +267,25 @@ export class Controller {
                 }
             }
 
-            const move = await this.runCreature(creature);
+            if (creature === this.superHotPlayer) {
+                do {
+                    const move = await this.runCreature(creature);
 
-            creature.lastMoves!.push({ tick: this.tickCtr, pos: { x: creature.pos.x, y: creature.pos.y }, move });
+                    creature.lastMoves!.push({ tick: this.tickCtr, pos: { x: creature.pos.x, y: creature.pos.y }, move });
 
-            const iBox = { i };
-            this.runMove(move, creature, iBox, false);
-            i = iBox.i;
+                    const iBox = { i };
+                    playerMoveOut = this.runMove(move, creature, iBox, true);
+                    i = iBox.i;
+                } while (playerMoveOut === false);
+            } else {
+                const move = await this.runCreature(creature);
+
+                creature.lastMoves!.push({ tick: this.tickCtr, pos: { x: creature.pos.x, y: creature.pos.y }, move });
+
+                const iBox = { i };
+                this.runMove(move, creature, iBox, false);
+                i = iBox.i;
+            }
         }
 
         const maxY = this.world.getGrid().length;
