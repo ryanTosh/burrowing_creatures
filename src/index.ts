@@ -302,7 +302,7 @@ if (window.superHot) {
         }
     ], canvas);
     let controller = Controller.buildController(sampleBots, 1);
-    const graphics = new Graphics(canvas, Math.floor(window.innerWidth * (1 - 0.0625) - 120 - 180), window.innerHeight, controller, controls, false);
+    const graphics = new Graphics(canvas, Math.floor(window.innerWidth * (1 - 0.0625) - 120 - 180), window.innerHeight, controller, controls, null);
 
     let tickInterval: number | null = null;
 
