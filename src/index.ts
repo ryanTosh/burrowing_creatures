@@ -131,7 +131,7 @@ if (window.superHot) {
     // Unmapped: rock interactions, bite
 
     let controller = Controller.buildSuperHotController(moveBox, sampleBots, 4);
-    const graphics = new Graphics(canvas, window.innerWidth, window.innerHeight, controller, controls, true);
+    const graphics = new Graphics(canvas, window.innerWidth, window.innerHeight, controller, controls, moveBox);
 
     (document.getElementById("sidebar") as HTMLDivElement).style.display = "none";
 

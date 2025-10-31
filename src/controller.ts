@@ -540,7 +540,7 @@ export class Controller {
                     case Cell.MossyChippedStone: {
                         if (safe) {
                             if (move.pos.y == creature.pos.y && !this.world.isSolid(creature.pos.x, creature.pos.y - 1)) return false;
-                            if (move.pos.x == creature.pos.x && move.pos.y == creature.pos.y - 1 && !this.world.isSolid(creature.pos.x, creature.pos.y - 2)) return false;
+                            if (move.pos.x == creature.pos.x && move.pos.y == creature.pos.y - 1 && !this.world.isSolid(creature.pos.x, creature.pos.y - 2) && !(this.world.isSolid(creature.pos.x - 1, creature.pos.y) && this.world.isSolid(creature.pos.x + 1, creature.pos.y))) return false;
                         }
 
                         this.world.setCell(move.pos.x, move.pos.y, Cell.Empty);
