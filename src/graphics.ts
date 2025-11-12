@@ -1,7 +1,7 @@
-import { MoveBox } from ".";
 import { Controller } from "./controller";
 import { Controls } from "./controls";
 import { SidebarMgr } from "./sidebar";
+import { SuperHot } from "./super_hot";
 import { BgCell, Cell } from "./world";
 
 interface Tag {
@@ -41,16 +41,18 @@ export class Graphics {
 
     private x: number;
     private y: number;
-    private zoomCtlCellSize: number;
+    private zoom: number;
+
+    private baseCellSize: number;
     private cellSize: number;
 
     private lastTime?: number;
 
     private frameTimes: number[] = [];
 
-    private superHotMoveBox: MoveBox | null;
+    private superHot: SuperHot;
 
-    constructor(canvas: HTMLCanvasElement, width: number, height: number, controller: Controller, controls: Controls, superHotMoveBox: MoveBox | null = null) {
+    constructor(canvas: HTMLCanvasElement, width: number, height: number, controller: Controller, controls: Controls, superHot: SuperHot) {
         this.canvas = canvas;
 
         this.width = width;
@@ -68,12 +70,45 @@ export class Graphics {
 
         this.x = 0;
         this.y = 80;
-        this.zoomCtlCellSize = this.cellSize = Math.ceil(this.width / 40 / 7) * 7;
+        this.zoom = 1;
+
+        this.cellSize = this.baseCellSize = Math.ceil(Math.sqrt(this.width * this.height) / 40 / 7) * 7;
 
         this.sidebar.setController(this.controller);
         this.updateSidebar();
 
-        this.superHotMoveBox = superHotMoveBox;
+        this.superHot = superHot;
+
+        this.setZoomControls();
+    }
+
+    private setZoomControls() {
+        this.controls.onBindDown("zoom_in", () => {
+            this.zoom *= 1.1;
+
+            const rounded = Math.round(this.zoom * this.baseCellSize);
+
+            if (rounded == this.cellSize) {
+                this.cellSize += 1;
+                this.zoom = this.cellSize / this.baseCellSize;
+            } else {
+                this.cellSize = rounded;
+            }
+        });
+        this.controls.onBindDown("zoom_out", () => {
+            if (this.cellSize > 7) {
+                this.zoom /= 1.1;
+
+                const rounded = Math.round(this.zoom * this.baseCellSize);
+
+                if (rounded == this.cellSize) {
+                    this.cellSize -= 1;
+                    this.zoom = this.cellSize / this.baseCellSize;
+                } else {
+                    this.cellSize = rounded;
+                }
+            }
+        });
     }
 
     public resize(width: number, height: number) {
@@ -82,11 +117,20 @@ export class Graphics {
 
         this.canvas.width = this.width;
         this.canvas.height = this.height;
+
+        this.baseCellSize = Math.ceil(Math.sqrt(this.width * this.height) / 40 / 7) * 7;
+        this.cellSize = Math.max(Math.round(this.zoom * this.baseCellSize), 7);
     }
 
     public setController(controller: Controller) {
         this.controller = controller;
         this.sidebar.setController(controller);
+    }
+
+    public setControls(controls: Controls) {
+        this.controls = controls;
+
+        this.setZoomControls();
     }
 
     public setSpectateBotId(spectateBotId: string | null) {
@@ -162,45 +206,16 @@ export class Graphics {
 
     public startFrames() {
         this.frame(undefined);
-
-        if (!window.superHot) {
-            this.controls.onBindDown("zoom_in", () => {
-                this.zoomCtlCellSize *= 1.1;
-
-                const rounded = Math.round(this.zoomCtlCellSize);
-
-                if (rounded == this.cellSize) {
-                    this.zoomCtlCellSize = this.cellSize += 1;
-                } else {
-                    this.cellSize = rounded;
-                }
-            });
-            this.controls.onBindDown("zoom_out", () => {
-                if (this.cellSize > 7) {
-                    this.zoomCtlCellSize /= 1.1;
-
-                    const rounded = Math.round(this.zoomCtlCellSize);
-
-                    if (rounded == this.cellSize) {
-                        this.zoomCtlCellSize = this.cellSize -= 1;
-                    } else {
-                        this.cellSize = rounded;
-                    }
-                }
-            });
-        }
     }
 
     private frame(time: number | undefined) {
         const diff = time === undefined || this.lastTime === undefined ? 0 : time - this.lastTime;
         this.lastTime = time;
 
-        if (window.superHot) {
-            const player = this.controller.getCreatures().find(c => c.id == 0);
-
-            if (player !== undefined) {
-                this.x = player.pos.x + 0.5;
-                this.y = player.pos.y - 0.5;
+        if (this.superHot.ctx !== null) {
+            if (this.superHot.ctx.creature !== null) {
+                this.x = this.superHot.ctx.creature.pos.x + 0.5;
+                this.y = this.superHot.ctx.creature.pos.y - 0.5;
             }
         } else {
             let moveControls = true;
@@ -226,7 +241,7 @@ export class Graphics {
         }
         
         this.draw();
-        if (this.superHotMoveBox === null) this.updateSidebar();
+        if (this.superHot.ctx === null) this.updateSidebar();
 
         window.requestAnimationFrame(this.frame.bind(this));
     }
@@ -344,8 +359,8 @@ export class Graphics {
             }
         }
 
-        if (this.superHotMoveBox !== null) {
-            if (!this.superHotMoveBox.safe) {
+        if (this.superHot.ctx !== null) {
+            if (!this.superHot.ctx.safe) {
                 this.ctx.fillStyle = "rgba(127.5, 0, 0, 0.5)";
 
                 this.ctx.fillRect(0, 0, this.width, 4);
@@ -354,17 +369,19 @@ export class Graphics {
                 this.ctx.fillRect(this.width - 4, 0, 4, this.height);
             }
 
-            this.ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
-            this.ctx.fillRect(8, this.height - 8 - 80, 80, 80);
+            if (this.superHot.ctx.creature !== null) {
+                this.ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+                this.ctx.fillRect(8, this.height - 8 - 80, 80, 80);
 
-            if (this.controller.getSuperHotPlayer()!.carryingRock) {
-                this.ctx.drawImage(this.rockImg!, 24, this.height - 8 - 80 + 16, 48, 48);
-            }
+                if (this.superHot.ctx.creature.carryingRock) {
+                    this.ctx.drawImage(this.rockImg!, 24, this.height - 8 - 80 + 16, 48, 48);
+                }
 
-            if (this.controller.getSuperHotPlayer()!.fullness < 25) {
-                this.ctx.fillStyle = "rgba(255, 0, 0, " + 0.005 * (25 - this.controller.getSuperHotPlayer()!.fullness) + ")";
+                if (this.superHot.ctx.creature.fullness < 25) {
+                    this.ctx.fillStyle = "rgba(255, 0, 0, " + 0.005 * (25 - this.superHot.ctx.creature.fullness) + ")";
 
-                this.ctx.fillRect(0, 0, this.width, this.height);
+                    this.ctx.fillRect(0, 0, this.width, this.height);
+                }
             }
         }
 
@@ -377,9 +394,9 @@ export class Graphics {
         this.ctx.textAlign = "left";
         this.ctx.textBaseline = "top";
 
-        if (this.superHotMoveBox !== null) {
+        if (this.superHot.ctx !== null) {
             const stillAlive: string[] = [
-                "Still alive: " + this.controller.getCreatures().filter(c => c !== this.controller.getSuperHotPlayer()).length + " others"
+                "Still alive: " + this.controller.getCreatures().filter(c => c !== this.superHot.ctx!.creature).length + " others"
             ];
 
             const stillAliveStrs = stillAlive.join("\n").split("\n");

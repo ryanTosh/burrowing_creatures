@@ -1,5 +1,5 @@
-import { MoveBox } from ".";
 import { Bot } from "./bot_interface";
+import { SuperHot } from "./super_hot";
 import { Cell, World } from "./world";
 
 export interface InteractMove {
@@ -96,15 +96,13 @@ export class Controller {
 
     private debug: boolean;
 
-    private superHotPlayer: Creature | null;
-    private superHotMoveBox: MoveBox | null;
+    private superHot: SuperHot;
 
-    private constructor(world: World, creatures: Creature[], debug: boolean, superHotPlayer: Creature | null, superHotMoveBox: MoveBox | null) {
+    private constructor(world: World, creatures: Creature[], debug: boolean, superHot: SuperHot) {
         this.world = world;
         this.creatures = creatures;
         this.debug = debug;
-        this.superHotPlayer = superHotPlayer;
-        this.superHotMoveBox = superHotMoveBox;
+        this.superHot = superHot;
     }
 
     public static buildController(bots: Bot[], copies: number, debug: boolean = false) {
@@ -132,10 +130,12 @@ export class Controller {
 
         creatures.sort((x, y) => x.id - y.id);
 
-        return new Controller(world, creatures, debug, null, null);
+        return new Controller(world, creatures, debug, { ctx: null });
     }
 
-    public static buildSuperHotController(moveBox: MoveBox, bots: Bot[], copies: number, debug: boolean = false) {
+    public static buildSuperHotController(superHot: SuperHot, bots: Bot[], copies: number, debug: boolean = false) {
+        if (superHot.ctx === null) return this.buildController(bots, copies, debug);
+
         const world = World.buildWorld((bots.length * copies + 1) * WIDTH_PER_BOT, WORLD_SETTINGS);
         const creatures: Creature[] = new Array(bots.length * copies + 1);
 
@@ -152,12 +152,14 @@ export class Controller {
             bot: {
                 id: "__player__",
                 async runPromise() {
-                    return await new Promise(r => (moveBox.resolve = r));
+                    return await new Promise(r => (superHot.ctx!.resolveMove = r));
                 }
             },
             ctx: {},
             lastMoves: []
         };
+
+        superHot.ctx.creature = creatures[0];
 
         for (let i = 0; i < copies; i++) {
             for (let j = 0; j < bots.length; j++) {
@@ -178,7 +180,7 @@ export class Controller {
 
         creatures.sort((x, y) => x.id - y.id);
 
-        return new Controller(world, creatures, debug, creatures[0], moveBox);
+        return new Controller(world, creatures, debug, superHot);
     }
 
     public getWorld(): World {
@@ -199,10 +201,6 @@ export class Controller {
 
     public getTickTimes(): number[] {
         return this.tickTimes;
-    }
-
-    public getSuperHotPlayer(): Creature | null {
-        return this.superHotPlayer;
     }
 
     private static findCreatureSpawnPos(world: World, creatures: Creature[]) {
@@ -270,14 +268,14 @@ export class Controller {
                 }
             }
 
-            if (creature === this.superHotPlayer) {
+            if (this.superHot.ctx !== null && creature === this.superHot.ctx.creature) {
                 do {
                     const move = await this.runCreature(creature);
 
                     creature.lastMoves!.push({ tick: this.tickCtr, pos: { x: creature.pos.x, y: creature.pos.y }, move });
 
                     const iBox = { i };
-                    playerMoveOut = this.runMove(move, creature, iBox, this.superHotMoveBox!.safe);
+                    playerMoveOut = this.runMove(move, creature, iBox, this.superHot.ctx.safe);
                     i = iBox.i;
                 } while (playerMoveOut === false);
             } else {
@@ -410,7 +408,6 @@ export class Controller {
 
                                 for (const victim of crushed) {
                                     if (this.damageCreature(victim, ROCK_CRUSH_BASE_DAMAGE + ROCK_CRUSH_PER_UNIT_DAMAGE * (cell - Cell.Rock + 1), { type: "rock" }) == -1 && !onSolidGround && !victim.falling) {
-                                        victim.pos.y -= 1;
                                         victim.falling = true;
                                     }
                                 }
@@ -593,12 +590,11 @@ export class Controller {
                     this.world.setCell(move.pos.x, move.pos.y, Cell.Empty);
 
                     for (const victim of crushed) {
-                        const killedIndex = this.damageCreature(creature, ROCK_CRUSH_BASE_DAMAGE, { type: "rock" });
+                        const killedIndex = this.damageCreature(victim, ROCK_CRUSH_BASE_DAMAGE, { type: "rock" });
 
                         if (killedIndex != -1) {
                             if (killedIndex <= iBox.i) iBox.i--;
                         } else if (!onSolidGround && !victim.falling) {
-                            victim.pos.y -= 1;
                             victim.falling = true;
                         }
                     }

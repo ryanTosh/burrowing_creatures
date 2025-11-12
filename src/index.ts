@@ -1,13 +1,9 @@
 import { Bot, climbDown, climbUp, left, right } from "./bot_interface";
-import { Controller, Move } from "./controller";
+import { Controller } from "./controller";
 import { Controls } from "./controls";
 import { Graphics } from "./graphics";
 import { sampleBots } from "./sample_bots";
-
-export interface MoveBox {
-    resolve: ((move: Move) => void) | null;
-    safe: boolean;
-}
+import { SuperHot } from "./super_hot";
 
 declare global {
     interface Window {
@@ -46,8 +42,12 @@ window.runCompetitionController = (bots: Bot[], copies: number, debug: boolean =
 
 const canvas = document.getElementById("display") as HTMLCanvasElement;
 
+let controller!: Controller;
+let graphics!: Graphics;
+
 if (window.superHot) {
-    const moveBox: MoveBox = { resolve: null, safe: true };
+    const superHot: SuperHot = { ctx: { creature: null, resolveMove: null, safe: true } };
+
     const controls = new Controls([
         {
             id: "still",
@@ -130,8 +130,8 @@ if (window.superHot) {
     // Right click: eat
     // Unmapped: rock interactions, bite
 
-    let controller = Controller.buildSuperHotController(moveBox, sampleBots, 4);
-    const graphics = new Graphics(canvas, window.innerWidth, window.innerHeight, controller, controls, moveBox);
+    controller = Controller.buildSuperHotController(superHot, sampleBots, 4);
+    graphics = new Graphics(canvas, window.innerWidth, window.innerHeight, controller, controls, superHot);
 
     (document.getElementById("sidebar") as HTMLDivElement).style.display = "none";
 
@@ -139,269 +139,287 @@ if (window.superHot) {
     graphics.draw();
     graphics.startFrames();
 
-    let mode: "dig" | "rock" | "eat" | "bite" = "dig";
+    await new Promise(async (R) => {
+        let mode: "dig" | "rock" | "eat" | "bite" = "dig";
 
-    controls.onBindDown("still", () => {
-        const player = controller.getCreatures().find(c => c.id == 0);
-        if (player === undefined) return;
+        controls.onBindDown("still", () => {
+            const player = controller.getCreatures().find(c => c.id == 0);
+            if (player === undefined) return;
 
-        const { x, y } = player.pos;
-        const modeType = mode == "rock" ? controller.getWorld().isSolid(x, y) ? "pick_up" : "drop" : mode;
-        if (moveBox.resolve !== null) moveBox.resolve(controls.isBindDown("shift") ? { type: modeType, pos: { x: x, y: y } } : null);
+            const { x, y } = player.pos;
+            const modeType = mode == "rock" ? controller.getWorld().isSolid(x, y) ? "pick_up" : "drop" : mode;
+            if (superHot.ctx!.resolveMove !== null) superHot.ctx!.resolveMove(controls.isBindDown("shift") ? { type: modeType, pos: { x: x, y: y } } : null);
+        });
+        controls.onBindDown("up", () => {
+            const player = controller.getCreatures().find(c => c.id == 0);
+            if (player === undefined) return;
+
+            const { x, y } = player.pos;
+            const modeType = mode == "rock" ? controller.getWorld().isSolid(x, y + 1) ? "pick_up" : "drop" : mode;
+            if (superHot.ctx!.resolveMove !== null) superHot.ctx!.resolveMove(controls.isBindDown("shift") ? { type: modeType, pos: { x: x, y: y + 1 } } : climbUp());
+        });
+        controls.onBindDown("down", () => {
+            const player = controller.getCreatures().find(c => c.id == 0);
+            if (player === undefined) return;
+
+            const { x, y } = player.pos;
+            const modeType = mode == "rock" ? controller.getWorld().isSolid(x, y - 1) ? "pick_up" : "drop" : mode;
+            if (superHot.ctx!.resolveMove !== null) superHot.ctx!.resolveMove(controls.isBindDown("shift") ? { type: modeType, pos: { x: x, y: y - 1 } } : climbDown());
+        });
+        controls.onBindDown("left", () => {
+            const player = controller.getCreatures().find(c => c.id == 0);
+            if (player === undefined) return;
+
+            const { x, y } = player.pos;
+            const modeType = mode == "rock" ? controller.getWorld().isSolid(x - 1, y) ? "pick_up" : "drop" : mode;
+            if (superHot.ctx!.resolveMove !== null) superHot.ctx!.resolveMove(controls.isBindDown("shift") ? { type: modeType, pos: { x: x - 1, y: y } } : left());
+        });
+        controls.onBindDown("right", () => {
+            const player = controller.getCreatures().find(c => c.id == 0);
+            if (player === undefined) return;
+
+            const { x, y } = player.pos;
+            const modeType = mode == "rock" ? controller.getWorld().isSolid(x + 1, y) ? "pick_up" : "drop" : mode;
+            if (superHot.ctx!.resolveMove !== null) superHot.ctx!.resolveMove(controls.isBindDown("shift") ? { type: modeType, pos: { x: x + 1, y: y } } : right());
+        });
+        controls.onBindDown("-1_-1", () => {
+            if (!controls.isBindDown("shift")) return;
+
+            const player = controller.getCreatures().find(c => c.id == 0);
+            if (player === undefined) return;
+
+            const { x, y } = player.pos;
+            const modeType = mode == "rock" ? controller.getWorld().isSolid(x - 1, y - 1) ? "pick_up" : "drop" : mode;
+            if (superHot.ctx!.resolveMove !== null) superHot.ctx!.resolveMove({ type: modeType, pos: { x: x - 1, y: y - 1 } });
+        });
+        controls.onBindDown("1_-1", () => {
+            if (!controls.isBindDown("shift")) return;
+
+            const player = controller.getCreatures().find(c => c.id == 0);
+            if (player === undefined) return;
+
+            const { x, y } = player.pos;
+            const modeType = mode == "rock" ? controller.getWorld().isSolid(x + 1, y - 1) ? "pick_up" : "drop" : mode;
+            if (superHot.ctx!.resolveMove !== null) superHot.ctx!.resolveMove({ type: modeType, pos: { x: x + 1, y: y - 1 } });
+        });
+        controls.onBindDown("-1_1", () => {
+            if (!controls.isBindDown("shift")) return;
+
+            const player = controller.getCreatures().find(c => c.id == 0);
+            if (player === undefined) return;
+
+            const { x, y } = player.pos;
+            const modeType = mode == "rock" ? controller.getWorld().isSolid(x - 1, y + 1) ? "pick_up" : "drop" : mode;
+            if (superHot.ctx!.resolveMove !== null) superHot.ctx!.resolveMove({ type: modeType, pos: { x: x - 1, y: y + 1 } });
+        });
+        controls.onBindDown("1_1", () => {
+            if (!controls.isBindDown("shift")) return;
+
+            const player = controller.getCreatures().find(c => c.id == 0);
+            if (player === undefined) return;
+
+            const { x, y } = player.pos;
+            const modeType = mode == "rock" ? controller.getWorld().isSolid(x + 1, y + 1) ? "pick_up" : "drop" : mode;
+            if (superHot.ctx!.resolveMove !== null) superHot.ctx!.resolveMove({ type: modeType, pos: { x: x + 1, y: y + 1 } });
+        });
+        controls.onBindDown("mode_dig", () => {
+            mode = "dig";
+        });
+        controls.onBindDown("mode_rock", () => {
+            mode = "rock";
+        });
+        controls.onBindDown("mode_eat", () => {
+            mode = "eat";
+        });
+        controls.onBindDown("mode_bite", () => {
+            mode = "bite";
+        });
+        controls.onBindDown("toggle_safe", () => {
+            superHot.ctx!.safe = !superHot.ctx!.safe;
+        });
+
+        window.addEventListener("resize", () => {
+            graphics.resize(window.innerWidth, window.innerHeight);
+        });
+
+        async function tick() {
+            if (controller.getDeadCreatures().map(d => d.creature).includes(superHot.ctx!.creature!)) {
+                R(undefined);
+
+                return;
+            }
+
+            await controller.tick();
+
+            setTimeout(tick, 0);
+        }
+
+        tick();
     });
-    controls.onBindDown("up", () => {
-        const player = controller.getCreatures().find(c => c.id == 0);
-        if (player === undefined) return;
 
-        const { x, y } = player.pos;
-        const modeType = mode == "rock" ? controller.getWorld().isSolid(x, y + 1) ? "pick_up" : "drop" : mode;
-        if (moveBox.resolve !== null) moveBox.resolve(controls.isBindDown("shift") ? { type: modeType, pos: { x: x, y: y + 1 } } : climbUp());
-    });
-    controls.onBindDown("down", () => {
-        const player = controller.getCreatures().find(c => c.id == 0);
-        if (player === undefined) return;
+    superHot.ctx = null;
+    controls.close();
+    graphics.resize(Math.floor(window.innerWidth * (1 - 0.0625) - 120 - 180), window.innerHeight);
+    (document.getElementById("sidebar") as HTMLDivElement).style.display = "";
+}
 
-        const { x, y } = player.pos;
-        const modeType = mode == "rock" ? controller.getWorld().isSolid(x, y - 1) ? "pick_up" : "drop" : mode;
-        if (moveBox.resolve !== null) moveBox.resolve(controls.isBindDown("shift") ? { type: modeType, pos: { x: x, y: y - 1 } } : climbDown());
-    });
-    controls.onBindDown("left", () => {
-        const player = controller.getCreatures().find(c => c.id == 0);
-        if (player === undefined) return;
-
-        const { x, y } = player.pos;
-        const modeType = mode == "rock" ? controller.getWorld().isSolid(x - 1, y) ? "pick_up" : "drop" : mode;
-        if (moveBox.resolve !== null) moveBox.resolve(controls.isBindDown("shift") ? { type: modeType, pos: { x: x - 1, y: y } } : left());
-    });
-    controls.onBindDown("right", () => {
-        const player = controller.getCreatures().find(c => c.id == 0);
-        if (player === undefined) return;
-
-        const { x, y } = player.pos;
-        const modeType = mode == "rock" ? controller.getWorld().isSolid(x + 1, y) ? "pick_up" : "drop" : mode;
-        if (moveBox.resolve !== null) moveBox.resolve(controls.isBindDown("shift") ? { type: modeType, pos: { x: x + 1, y: y } } : right());
-    });
-    controls.onBindDown("-1_-1", () => {
-        if (!controls.isBindDown("shift")) return;
-
-        const player = controller.getCreatures().find(c => c.id == 0);
-        if (player === undefined) return;
-
-        const { x, y } = player.pos;
-        const modeType = mode == "rock" ? controller.getWorld().isSolid(x - 1, y - 1) ? "pick_up" : "drop" : mode;
-        if (moveBox.resolve !== null) moveBox.resolve({ type: modeType, pos: { x: x - 1, y: y - 1 } });
-    });
-    controls.onBindDown("1_-1", () => {
-        if (!controls.isBindDown("shift")) return;
-
-        const player = controller.getCreatures().find(c => c.id == 0);
-        if (player === undefined) return;
-
-        const { x, y } = player.pos;
-        const modeType = mode == "rock" ? controller.getWorld().isSolid(x + 1, y - 1) ? "pick_up" : "drop" : mode;
-        if (moveBox.resolve !== null) moveBox.resolve({ type: modeType, pos: { x: x + 1, y: y - 1 } });
-    });
-    controls.onBindDown("-1_1", () => {
-        if (!controls.isBindDown("shift")) return;
-
-        const player = controller.getCreatures().find(c => c.id == 0);
-        if (player === undefined) return;
-
-        const { x, y } = player.pos;
-        const modeType = mode == "rock" ? controller.getWorld().isSolid(x - 1, y + 1) ? "pick_up" : "drop" : mode;
-        if (moveBox.resolve !== null) moveBox.resolve({ type: modeType, pos: { x: x - 1, y: y + 1 } });
-    });
-    controls.onBindDown("1_1", () => {
-        if (!controls.isBindDown("shift")) return;
-
-        const player = controller.getCreatures().find(c => c.id == 0);
-        if (player === undefined) return;
-
-        const { x, y } = player.pos;
-        const modeType = mode == "rock" ? controller.getWorld().isSolid(x + 1, y + 1) ? "pick_up" : "drop" : mode;
-        if (moveBox.resolve !== null) moveBox.resolve({ type: modeType, pos: { x: x + 1, y: y + 1 } });
-    });
-    controls.onBindDown("mode_dig", () => {
-        mode = "dig";
-    });
-    controls.onBindDown("mode_rock", () => {
-        mode = "rock";
-    });
-    controls.onBindDown("mode_eat", () => {
-        mode = "eat";
-    });
-    controls.onBindDown("mode_bite", () => {
-        mode = "bite";
-    });
-    controls.onBindDown("toggle_safe", () => {
-        moveBox.safe = !moveBox.safe;
-    });
-
-    window.addEventListener("resize", () => {
-        graphics.resize(window.innerWidth, window.innerHeight);
-    });
-
-    async function tick() {
-        await controller.tick();
-
-        setTimeout(tick, 0);
+const controls = new Controls([
+    {
+        id: "up",
+        keys: ["KeyW", "ArrowUp"],
+        mouseBtns: []
+    },
+    {
+        id: "down",
+        keys: ["KeyS", "ArrowDown"],
+        mouseBtns: []
+    },
+    {
+        id: "left",
+        keys: ["KeyA", "ArrowLeft"],
+        mouseBtns: []
+    },
+    {
+        id: "right",
+        keys: ["KeyD", "ArrowRight"],
+        mouseBtns: []
+    },
+    {
+        id: "zoom_in",
+        keys: ["KeyZ"],
+        mouseBtns: []
+    },
+    {
+        id: "zoom_out",
+        keys: ["KeyX"],
+        mouseBtns: []
+    },
+    {
+        id: "fast",
+        keys: ["ShiftLeft", "ShiftRight"],
+        mouseBtns: []
+    },
+    {
+        id: "step",
+        keys: ["Space"],
+        mouseBtns: []
+    },
+    {
+        id: "toggle",
+        keys: ["KeyR"],
+        mouseBtns: []
+    },
+    {
+        id: "spectate",
+        keys: ["KeyG"],
+        mouseBtns: []
     }
+], canvas);
 
-    tick();
+if (!window.superHot) {
+    controller = Controller.buildController(sampleBots, 1);
+    graphics = new Graphics(canvas, Math.floor(window.innerWidth * (1 - 0.0625) - 120 - 180), window.innerHeight, controller, controls, { ctx: null });
 } else {
-    const controls = new Controls([
-        {
-            id: "up",
-            keys: ["KeyW", "ArrowUp"],
-            mouseBtns: []
-        },
-        {
-            id: "down",
-            keys: ["KeyS", "ArrowDown"],
-            mouseBtns: []
-        },
-        {
-            id: "left",
-            keys: ["KeyA", "ArrowLeft"],
-            mouseBtns: []
-        },
-        {
-            id: "right",
-            keys: ["KeyD", "ArrowRight"],
-            mouseBtns: []
-        },
-        {
-            id: "zoom_in",
-            keys: ["KeyZ"],
-            mouseBtns: []
-        },
-        {
-            id: "zoom_out",
-            keys: ["KeyX"],
-            mouseBtns: []
-        },
-        {
-            id: "fast",
-            keys: ["ShiftLeft", "ShiftRight"],
-            mouseBtns: []
-        },
-        {
-            id: "step",
-            keys: ["Space"],
-            mouseBtns: []
-        },
-        {
-            id: "toggle",
-            keys: ["KeyR"],
-            mouseBtns: []
-        },
-        {
-            id: "spectate",
-            keys: ["KeyG"],
-            mouseBtns: []
-        }
-    ], canvas);
-    let controller = Controller.buildController(sampleBots, 1);
-    const graphics = new Graphics(canvas, Math.floor(window.innerWidth * (1 - 0.0625) - 120 - 180), window.innerHeight, controller, controls, null);
+    graphics.setControls(controls);
+}
 
-    let tickInterval: number | null = null;
+let tickInterval: number | null = null;
 
-    const tick = document.getElementById("tick") as HTMLSpanElement;
-    const tickRate = document.getElementById("tick_rate") as HTMLInputElement;
-    const step = document.getElementById("step") as HTMLButtonElement;
-    const start = document.getElementById("start") as HTMLButtonElement;
-    const stop = document.getElementById("stop") as HTMLButtonElement;
-    const reset = document.getElementById("reset") as HTMLButtonElement;
-    const spectate = document.getElementById("spectate") as HTMLSelectElement;
+const tick = document.getElementById("tick") as HTMLSpanElement;
+const tickRate = document.getElementById("tick_rate") as HTMLInputElement;
+const step = document.getElementById("step") as HTMLButtonElement;
+const start = document.getElementById("start") as HTMLButtonElement;
+const stop = document.getElementById("stop") as HTMLButtonElement;
+const reset = document.getElementById("reset") as HTMLButtonElement;
+const spectate = document.getElementById("spectate") as HTMLSelectElement;
 
-    for (const bot of sampleBots) {
-        const option = document.createElement("option");
-        option.textContent = bot.id;
-        spectate.appendChild(option);
-    }
+for (const bot of sampleBots) {
+    const option = document.createElement("option");
+    option.textContent = bot.id;
+    spectate.appendChild(option);
+}
 
-    let lastSpectated: string | null = sampleBots[sampleBots.length - 1]?.id ?? null;
+let lastSpectated: string | null = sampleBots[sampleBots.length - 1]?.id ?? null;
 
-    step.addEventListener("click", async () => {
-        await controller.tick();
-        tick.textContent = controller.getTickCtr().toString();
-    });
+step.addEventListener("click", async () => {
+    await controller.tick();
+    tick.textContent = controller.getTickCtr().toString();
+});
 
-    controls.onBindDown("step", async () => {
-        await controller.tick();
-        tick.textContent = controller.getTickCtr().toString();
-    });
+controls.onBindDown("step", async () => {
+    await controller.tick();
+    tick.textContent = controller.getTickCtr().toString();
+});
 
-    controls.onBindDown("toggle", () => {
-        if (tickInterval === null) {
-            tickInterval = setInterval(async () => {
-                await controller.tick();
-                tick.textContent = controller.getTickCtr().toString();
-            }, 1000 / Number(tickRate.value || 1));
-
-            stop.disabled = false;
-        } else {
-            clearInterval(tickInterval);
-            tickInterval = null;
-
-            stop.disabled = true;
-        }
-    });
-
-    start.addEventListener("click", () => {
-        if (tickInterval !== null) {
-            clearInterval(tickInterval);
-        }
-
+controls.onBindDown("toggle", () => {
+    if (tickInterval === null) {
         tickInterval = setInterval(async () => {
             await controller.tick();
             tick.textContent = controller.getTickCtr().toString();
         }, 1000 / Number(tickRate.value || 1));
 
         stop.disabled = false;
-    });
-
-    stop.addEventListener("click", () => {
-        if (tickInterval === null) return;
-
+    } else {
         clearInterval(tickInterval);
         tickInterval = null;
 
         stop.disabled = true;
-    });
+    }
+});
 
-    reset.addEventListener("click", () => {
-        controller = Controller.buildController(sampleBots, 4);
-        graphics.setController(controller);
+start.addEventListener("click", () => {
+    if (tickInterval !== null) {
+        clearInterval(tickInterval);
+    }
+
+    tickInterval = setInterval(async () => {
+        await controller.tick();
         tick.textContent = controller.getTickCtr().toString();
-    });
+    }, 1000 / Number(tickRate.value || 1));
 
-    controls.onBindDown("spectate", () => {
-        if (spectate.selectedIndex == 0) {
-            if (lastSpectated !== null) {
-                spectate.value = lastSpectated;
-                graphics.setSpectateBotId(lastSpectated);
-            }
-        } else {
-            spectate.selectedIndex = 0;
-            graphics.setSpectateBotId(null);
+    stop.disabled = false;
+});
+
+stop.addEventListener("click", () => {
+    if (tickInterval === null) return;
+
+    clearInterval(tickInterval);
+    tickInterval = null;
+
+    stop.disabled = true;
+});
+
+reset.addEventListener("click", () => {
+    controller = Controller.buildController(sampleBots, 4);
+    graphics.setController(controller);
+    tick.textContent = controller.getTickCtr().toString();
+});
+
+controls.onBindDown("spectate", () => {
+    if (spectate.selectedIndex == 0) {
+        if (lastSpectated !== null) {
+            spectate.value = lastSpectated;
+            graphics.setSpectateBotId(lastSpectated);
         }
-    });
+    } else {
+        spectate.selectedIndex = 0;
+        graphics.setSpectateBotId(null);
+    }
+});
 
-    spectate.addEventListener("change", () => {
-        if (spectate.selectedIndex == 0) {
-            graphics.setSpectateBotId(null);
-        } else {
-            graphics.setSpectateBotId(spectate.value);
-            lastSpectated = spectate.value;
-        }
-    });
+spectate.addEventListener("change", () => {
+    if (spectate.selectedIndex == 0) {
+        graphics.setSpectateBotId(null);
+    } else {
+        graphics.setSpectateBotId(spectate.value);
+        lastSpectated = spectate.value;
+    }
+});
 
-    await graphics.loadImages();
-    graphics.draw();
-    graphics.startFrames();
+await graphics.loadImages();
+graphics.draw();
+graphics.startFrames();
 
-    window.addEventListener("resize", () => {
-        graphics.resize(Math.floor(window.innerWidth * (1 - 0.0625) - 120 - 180), window.innerHeight);
-    });
-}
+window.addEventListener("resize", () => {
+    graphics.resize(Math.floor(window.innerWidth * (1 - 0.0625) - 120 - 180), window.innerHeight);
+});

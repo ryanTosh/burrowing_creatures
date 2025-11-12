@@ -198,15 +198,15 @@ export class Controls {
     }
 
     public onBindDown(binding_id: string, fn: () => void) {
-        this.bindDownListeners.get(binding_id)!.push(fn);
+        this.bindDownListeners.get(binding_id)?.push(fn);
     }
 
     public onBindNowDown(binding_id: string, fn: () => void) {
-        this.bindNowDownListeners.get(binding_id)!.push(fn);
+        this.bindNowDownListeners.get(binding_id)?.push(fn);
     }
 
     public onBindUp(binding_id: string, fn: () => void) {
-        this.bindUpListeners.get(binding_id)!.push(fn);
+        this.bindUpListeners.get(binding_id)?.push(fn);
     }
 
     public onMouseMove(fn: (pointingDir: number | null) => void) {
