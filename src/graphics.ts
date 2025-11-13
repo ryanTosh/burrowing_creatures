@@ -72,7 +72,7 @@ export class Graphics {
         this.y = 80;
         this.zoom = 1;
 
-        this.cellSize = this.baseCellSize = Math.ceil(Math.sqrt(this.width * this.height) / 40 / 7) * 7;
+        this.cellSize = this.baseCellSize = Math.ceil(Math.sqrt(this.width * this.height) / 32 / 7) * 7;
 
         this.sidebar.setController(this.controller);
         this.updateSidebar();
@@ -296,6 +296,10 @@ export class Graphics {
                         tagStrings.push(creature.id + ": " + creature.bot!.id + " [" + creature.hp + " HP, " + creature.fullness + " FN]");
                     }
                     tags.push({ x: xOff + this.cellSize / 2, y: yOff - 6, strs: tagStrings });
+
+                    if (cell == Cell.SmallGrassTufts || cell == Cell.LargeGrassTufts) {
+                        this.ctx.drawImage(this.cellToImg(cell)!, xOff, yOff, this.cellSize, this.cellSize);
+                    }
                 } else {
                     if (cell == Cell.Empty || cell == Cell.SmallGrassTufts || cell == Cell.LargeGrassTufts) {
                         this.ctx.fillStyle = this.bgCellToColor(world.getBgCell(x, y), y - world.groundHeight);
