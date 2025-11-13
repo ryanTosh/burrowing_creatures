@@ -26,7 +26,7 @@ export interface Creature {
     fullness: number;
     falling: boolean;
     fallDist: number;
-    carryingRock: boolean;
+    carryingRocks: number;
     bot?: Bot;
     ctx?: any;
     lastMoves?: LastMove[];
@@ -120,7 +120,7 @@ export class Controller {
                     fullness: SPAWN_FULLNESS,
                     fallDist: 0,
                     falling: false,
-                    carryingRock: false,
+                    carryingRocks: 0,
                     bot: bots[j],
                     ctx: {},
                     lastMoves: []
@@ -148,7 +148,7 @@ export class Controller {
             fullness: SPAWN_FULLNESS,
             fallDist: 0,
             falling: false,
-            carryingRock: false,
+            carryingRocks: 0,
             bot: {
                 id: "__player__",
                 async runPromise() {
@@ -170,7 +170,7 @@ export class Controller {
                     fullness: SPAWN_FULLNESS,
                     fallDist: 0,
                     falling: false,
-                    carryingRock: false,
+                    carryingRocks: 0,
                     bot: bots[j],
                     ctx: {},
                     lastMoves: []
@@ -561,7 +561,6 @@ export class Controller {
             }
             case "pick_up": {
                 if (!isValidTarget(creature, move.pos, this.world)) return false;
-                if (creature.carryingRock) return false;
                 if (safe && move.pos.y == creature.pos.y && !this.world.isSolid(creature.pos.x, creature.pos.y - 1)) return false;
 
                 const cell = this.world.getCell(move.pos.x, move.pos.y);
@@ -569,19 +568,19 @@ export class Controller {
                 if (cell != Cell.Rock) return false;
 
                 this.world.setCell(move.pos.x, move.pos.y, Cell.Empty);
-                creature.carryingRock = true;
+                creature.carryingRocks++;
 
                 return true;
             }
             case "drop": {
                 if (!isValidTarget(creature, move.pos, this.world)) return false;
-                if (!creature.carryingRock) return false;
+                if (creature.carryingRocks == 0) return false;
                 if (safe && move.pos.x == creature.pos.x && move.pos.y >= creature.pos.y) return false;
 
                 if (this.world.isSolid(move.pos.x, move.pos.y)) return false;
 
                 this.world.setCell(move.pos.x, move.pos.y, Cell.Rock);
-                creature.carryingRock = false;
+                creature.carryingRocks--;
 
                 const crushed = this.creatures.filter(c => c.pos.x == move.pos.x && c.pos.y == move.pos.y);
                 if (crushed.length != 0) {

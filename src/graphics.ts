@@ -377,8 +377,17 @@ export class Graphics {
                 this.ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
                 this.ctx.fillRect(8, this.height - 8 - 80, 80, 80);
 
-                if (this.superHot.ctx.creature.carryingRock) {
+                if (this.superHot.ctx.creature.carryingRocks != 0) {
                     this.ctx.drawImage(this.rockImg!, 24, this.height - 8 - 80 + 16, 48, 48);
+
+                    if (this.superHot.ctx.creature.carryingRocks > 1) {
+                        this.ctx.font = "500 24px 'Roboto Mono', monospace";
+                        this.ctx.textAlign = "left";
+                        this.ctx.textBaseline = "top";
+
+                        this.ctx.fillStyle = "#ffffff";
+                        this.ctx.fillText(String(this.superHot.ctx.creature.carryingRocks), 24 + 48 * 5.5/7, this.height - 8 - 80 + 16 + 48 * 5.5/7);
+                    }
                 }
 
                 if (this.superHot.ctx.creature.fullness < 25) {
@@ -395,6 +404,7 @@ export class Graphics {
 
         if (this.frameTimes.length > 1000) this.frameTimes.shift();
 
+        this.ctx.font = "500 12px 'Roboto Mono', monospace";
         this.ctx.textAlign = "left";
         this.ctx.textBaseline = "top";
 

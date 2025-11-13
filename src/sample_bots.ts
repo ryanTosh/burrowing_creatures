@@ -105,20 +105,6 @@ export const sampleBots: Bot[] = [
                 }
                 // Pick up rock if it's in the way
                 if (cellBeneath == Cell.Rock) {
-                    // If already carrying a rock, dig a hole off to the side to drop it in
-                    if (self.carryingRock) {
-                        if (!world.isSolid(self.pos.x - 1, self.pos.y)) {
-                            return dropRock(self.pos.x - 1, self.pos.y);
-                        }
-                        if (!world.isSolid(self.pos.x + 1, self.pos.y)) {
-                            return dropRock(self.pos.x + 1, self.pos.y);
-                        }
-                        if (world.getCell(self.pos.x - 1, self.pos.y) != Cell.Rock) {
-                            return dig(self.pos.x - 1, self.pos.y);
-                        }
-                        return dig(self.pos.x + 1, self.pos.y);
-                    }
-
                     return pickUpRock(self.pos.x, self.pos.y - 1);
                 }
                 // Check if past dirt
@@ -234,7 +220,7 @@ export const sampleBots: Bot[] = [
                 }
             }
 
-            if (!self.carryingRock) {
+            if (self.carryingRocks == 0) {
                 const rocks: [number, number][] = [];
                 for (let rx = x - 10; rx <= x + 10; rx++) {
                     if (self.ctx.dead.includes(rx)) continue;
@@ -449,19 +435,14 @@ export const sampleBots: Bot[] = [
                 }
                 if (world.isSolid(x + 1, y + 1)) {
                     if (world.isRock(x + 1, y + 1)) {
-                        if (!self.carryingRock) return pickUpRock(x + 1, y + 1);
-
-                        if (!world.isSolid(x - 1, y + 1)) return dropRock(x - 1, y + 1);
-                        if (!world.isSolid(x - 1, y)) return dropRock(x - 1, y);
-                        if (!world.isSolid(x - 1, y - 1)) return dropRock(x - 1, y - 1);
-                        return dropRock(x, y); // ouch
+                        return pickUpRock(x + 1, y + 1);
                     } else {
                         return dig(x + 1, y + 1);
                     }
                 }
                 return right();
             }
-            if (self.carryingRock) return dropRock(x + 1, y);
+            if (self.carryingRocks != 0) return dropRock(x + 1, y);
             if (!world.isRock(x, y - 1)) return dig(x, y - 1);
             return pickUpRock(x, y - 1);
         }
@@ -512,13 +493,6 @@ export const sampleBots: Bot[] = [
                 }
             }
 
-            // Drop rock
-            if (self.carryingRock) {
-                if (!world.isSolid(x - self.ctx.dir, y + 1)) return dropRock(x - self.ctx.dir, y + 1);
-                if (!world.isSolid(x - self.ctx.dir, y)) return dropRock(x - self.ctx.dir, y);
-                if (!world.isSolid(x - self.ctx.dir, y - 1)) return dropRock(x - self.ctx.dir, y - 1);
-            }
-
             // Wander in direction
             if ((world.isSolid(x + self.ctx.dir, y - 2) || world.isSolid(x + self.ctx.dir, y - 1)) && !world.isSolid(x + self.ctx.dir, y)) {
                 const maxY = world.findTopSolidY(x + self.ctx.dir);
@@ -548,13 +522,7 @@ export const sampleBots: Bot[] = [
                 }
                 if (world.isSolid(x + self.ctx.dir, y + 1)) {
                     if (world.isRock(x + self.ctx.dir, y + 1)) {
-                        if (!self.carryingRock) return pickUpRock(x + self.ctx.dir, y + 1);
-                        if (!("stuck" in self.ctx)) {
-                            self.ctx.stuck = true;
-                            self.ctx.dir = -self.ctx.dir;
-                            return null;
-                        }
-                        return dropRock(x, y); // ouch
+                        return pickUpRock(x + self.ctx.dir, y + 1);
                     } else {
                         return dig(x + self.ctx.dir, y + 1);
                     }
@@ -569,7 +537,7 @@ export const sampleBots: Bot[] = [
                 }
                 if (!skip) return self.ctx.dir == -1 ? left() : right();
             }
-            if (self.carryingRock) return dropRock(x + self.ctx.dir, y);
+            if (self.carryingRocks != 0) return dropRock(x + self.ctx.dir, y);
             if (!world.isRock(x, y - 1)) return dig(x, y - 1);
             return pickUpRock(x, y - 1);
         }
@@ -629,13 +597,6 @@ export const sampleBots: Bot[] = [
                 }
             }
 
-            // Drop rock
-            if (self.carryingRock) {
-                if (!world.isSolid(x - self.ctx.dir, y + 1)) return dropRock(x - self.ctx.dir, y + 1);
-                if (!world.isSolid(x - self.ctx.dir, y)) return dropRock(x - self.ctx.dir, y);
-                if (!world.isSolid(x - self.ctx.dir, y - 1)) return dropRock(x - self.ctx.dir, y - 1);
-            }
-
             // Pursue
             if (world.findTopSolidY(x) < y && world.isSolid(x - 1, y + 1) && world.isSolid(x + 1, y + 1) && (running ? diffY < 0 : diffY > 0)) {
                 return climbUp();
@@ -658,13 +619,7 @@ export const sampleBots: Bot[] = [
             if (Math.abs(diffX) <= (running ? 0 : 1) && (running ? diffY > 0 : diffY < 0)) {
                 if (!world.isSolid(x, y - 1) && world.isSolid(x - 1, y - 1) && world.isSolid(x + 1, y - 1)) return climbDown();
                 if (world.isRock(x, y - 1)) {
-                    if (!self.carryingRock) return pickUpRock(x, y - 1);
-                    if (!world.isSolid(x - 1, y)) return dropRock(x - 1, y);
-                    if (!world.isSolid(x + 1, y)) return dropRock(x + 1, y);
-                    if (world.getCell(x - 1, y) != Cell.Rock) return dig(x - 1, y);
-                    if (world.getCell(x + 1, y) != Cell.Rock) return dig(x + 1, y);
-
-                    return dropRock(x, y); // ouch
+                    return pickUpRock(x, y - 1);
                 }
                 if (world.isSolid(x, y - 1) && (world.isSolid(x, y - 2) || world.isSolid(x, y - 3))) return dig(x, y - 1);
             }
@@ -685,13 +640,7 @@ export const sampleBots: Bot[] = [
                 }
                 if (world.isSolid(x + self.ctx.dir, y + 1)) {
                     if (world.isRock(x + self.ctx.dir, y + 1)) {
-                        if (!self.carryingRock) return pickUpRock(x + self.ctx.dir, y + 1);
-                        if (!("stuck" in self.ctx)) {
-                            self.ctx.stuck = true;
-                            self.ctx.dir = -self.ctx.dir;
-                            return null;
-                        }
-                        return dropRock(x, y); // ouch
+                        return pickUpRock(x + self.ctx.dir, y + 1);
                     } else {
                         return dig(x + self.ctx.dir, y + 1);
                     }
@@ -706,7 +655,7 @@ export const sampleBots: Bot[] = [
                 }
                 if (!skip) return self.ctx.dir == -1 ? left() : right();
             }
-            if (self.carryingRock) return dropRock(x + self.ctx.dir, y);
+            if (self.carryingRocks != 0) return dropRock(x + self.ctx.dir, y);
             if (!world.isRock(x, y - 1)) return dig(x, y - 1);
             return pickUpRock(x, y - 1);
         }
@@ -769,15 +718,7 @@ export const sampleBots: Bot[] = [
                             if (!cellIsSolid(cell)) continue;
                             if (cellIsFallingRock(cell)) continue;
                             if (cell == Cell.Rock) {
-                                if (!self.carryingRock) return pickUpRock(ox, oy);
-
-                                if (world.isReachableFrom(x, y, x + 1, y + 1)) {
-                                    if (!world.isSolid(x + 1, y + 1)) return dropRock(x + 1, y + 1);
-                                    if (!world.isRock(x + 1, y + 1)) return dig(x + 1, y + 1);
-                                }
-                                if (!world.isSolid(x + 1, y)) return dropRock(x + 1, y);
-                                if (!world.isRock(x + 1, y)) return dig(x + 1, y);
-                                return dropRock(x, y); // ouch
+                                return pickUpRock(ox, oy);
                             }
                             return dig(ox, oy);
                         }
@@ -816,14 +757,13 @@ export const sampleBots: Bot[] = [
                 }
 
                 if (state.state == 1) {
-                    if (self.carryingRock && !world.isSolid(x - 1, y)) return dropRock(x - 1, y);
+                    if (self.carryingRocks != 0 && !world.isSolid(x - 1, y)) return dropRock(x - 1, y);
                     if (world.getCell(x + 1, y) == Cell.Rock) {
-                        if (!self.carryingRock) return pickUpRock(x + 1, y);
-                        return dropRock(x, y); // ouch
+                        return pickUpRock(x + 1, y);
                     }
                     if (!world.isSolid(x + 1, y)) return right();
                     if (!world.isSolid(x, y - 1)) {
-                        if (self.carryingRock) return dropRock(x, y - 1);
+                        if (self.carryingRocks != 0) return dropRock(x, y - 1);
                         if (world.getCell(x + 1, y + 1) == Cell.Rock) return pickUpRock(x + 1, y + 1);
                         if (world.isSolid(x, y + 1)) return dig(x, y + 1);
                         if (!world.isSolid(x + 1, y + 1)) return right();
@@ -852,8 +792,7 @@ export const sampleBots: Bot[] = [
                 if (y == topP1) {
                     if (topM1 == topP1 + 1) {
                         if (world.isRock(x - 1, y + 1)) {
-                            if (!self.carryingRock) return pickUpRock(x - 1, y + 1);
-                            return dropRock(x + 1, y + 1);
+                            return pickUpRock(x - 1, y + 1);
                         }
                         return dig(x - 1, y + 1);
                     }
@@ -885,21 +824,7 @@ export const sampleBots: Bot[] = [
                     const cell = world.getCell(x, y - 1);
 
                     if (cell == Cell.Rock) {
-                        if (!self.carryingRock) return pickUpRock(x, y - 1);
-
-                        if (world.isReachableFrom(x, y, x - 1, y + 1)) {
-                            if (!world.isSolid(x - 1, y + 1)) return dropRock(x - 1, y + 1);
-                            if (!world.isRock(x - 1, y + 1)) return dig(x - 1, y + 1);
-                        }
-                        if (!world.isSolid(x - 1, y)) return dropRock(x - 1, y);
-                        if (!world.isRock(x - 1, y)) return dig(x - 1, y);
-                        if (world.isReachableFrom(x, y, x + 1, y + 1)) {
-                            if (!world.isSolid(x + 1, y + 1)) return dropRock(x + 1, y + 1);
-                            if (!world.isRock(x + 1, y + 1)) return dig(x + 1, y + 1);
-                        }
-                        if (!world.isSolid(x + 1, y)) return dropRock(x + 1, y);
-                        if (!world.isRock(x + 1, y)) return dig(x + 1, y);
-                        return dropRock(x, y); // ouch
+                        return pickUpRock(x, y - 1);
                     }
                     return dig(x, y - 1);
                 }
@@ -936,14 +861,13 @@ export const sampleBots: Bot[] = [
                 }
 
                 if (state.state == 4) {
-                    if (self.carryingRock && !world.isSolid(x + 1, y)) return dropRock(x + 1, y);
+                    if (self.carryingRocks != 0 && !world.isSolid(x + 1, y)) return dropRock(x + 1, y);
                     if (world.getCell(x - 1, y) == Cell.Rock) {
-                        if (!self.carryingRock) return pickUpRock(x - 1, y);
-                        return dropRock(x, y); // ouch
+                        return pickUpRock(x - 1, y);
                     }
                     if (!world.isSolid(x - 1, y)) return left();
                     if (!world.isSolid(x, y - 1)) {
-                        if (self.carryingRock) return dropRock(x, y - 1);
+                        if (self.carryingRocks != 0) return dropRock(x, y - 1);
                         if (world.getCell(x - 1, y + 1) == Cell.Rock) return pickUpRock(x - 1, y + 1);
                         if (world.isSolid(x, y + 1)) return dig(x, y + 1);
                         if (!world.isSolid(x - 1, y + 1)) return left();
@@ -962,8 +886,7 @@ export const sampleBots: Bot[] = [
                 if (y == topM1) {
                     if (topP1 == topM1 + 1) {
                         if (world.isRock(x + 1, y + 1)) {
-                            if (!self.carryingRock) return pickUpRock(x + 1, y + 1);
-                            return dropRock(x, y - 1);
+                            return pickUpRock(x + 1, y + 1);
                         }
                         return dig(x + 1, y + 1);
                     }
@@ -978,8 +901,7 @@ export const sampleBots: Bot[] = [
                 if (y == topP1) {
                     if (topM1 == topP1 + 1) {
                         if (world.isRock(x - 1, y + 1)) {
-                            if (!self.carryingRock) return pickUpRock(x - 1, y + 1);
-                            return dropRock(x + 1, y + 1);
+                            return pickUpRock(x - 1, y + 1);
                         }
                         return dig(x - 1, y + 1);
                     }
@@ -1015,15 +937,14 @@ export const sampleBots: Bot[] = [
                         }
                         if (world.isSolid(x + self.ctx.dir, y + 1)) {
                             if (world.isRock(x + self.ctx.dir, y + 1)) {
-                                if (!self.carryingRock) return pickUpRock(x + self.ctx.dir, y + 1);
-                                return dropRock(x, y); // ouch
+                                return pickUpRock(x + self.ctx.dir, y + 1);
                             } else {
                                 return dig(x + self.ctx.dir, y + 1);
                             }
                         }
                         return self.ctx.dir == -1 ? left() : right();
                     }
-                    if (self.carryingRock) return dropRock(x + self.ctx.dir, y);
+                    if (self.carryingRocks != 0) return dropRock(x + self.ctx.dir, y);
                     self.ctx.dir *= -1;
                 }
             }
@@ -1197,9 +1118,9 @@ export const sampleBots: Bot[] = [
                     if (cellIsSolid(cell)) {
                         if (!cellIsRock(cell)) moves.push(dig(ox, oy));
                         if ([Cell.SmallGrassTufts, Cell.LargeGrassTufts, Cell.GrassyDirt, Cell.MossyStone, Cell.MossyChippedStone, Cell.MossyBedrock].includes(cell)) moves.push(eat(ox, oy));
-                        if (cell == Cell.Rock && !self.carryingRock) moves.push(pickUpRock(ox, oy));
+                        if (cell == Cell.Rock) moves.push(pickUpRock(ox, oy));
                     } else {
-                        if (self.carryingRock) moves.push(dropRock(ox, oy));
+                        if (self.carryingRocks != 0) moves.push(dropRock(ox, oy));
                     }
                 }
             }
@@ -1235,9 +1156,9 @@ export const sampleBots: Bot[] = [
                     const cell = world.getCell(ox, oy);
                     if (cellIsSolid(cell)) {
                         if ([Cell.SmallGrassTufts, Cell.LargeGrassTufts, Cell.GrassyDirt, Cell.MossyStone, Cell.MossyChippedStone, Cell.MossyBedrock].includes(cell)) moves.push(eat(ox, oy));
-                        if (cell == Cell.Rock && !self.carryingRock) moves.push(pickUpRock(ox, oy));
+                        if (cell == Cell.Rock) moves.push(pickUpRock(ox, oy));
                     } else {
-                        if (self.carryingRock) moves.push(dropRock(ox, oy));
+                        if (self.carryingRocks != 0) moves.push(dropRock(ox, oy));
                     }
                 }
             }
@@ -1298,7 +1219,7 @@ export const sampleBots: Bot[] = [
                         // Pick up rock if it's in the way
                         if (cellBeneath == Cell.Rock) {
                             // If already carrying a rock, dig a hole off to the side to drop it in
-                            if (self.carryingRock) {
+                            if (self.carryingRocks != 0) {
                                 if (!world.isSolid(self.pos.x - 1, self.pos.y)) {
                                     return dropRock(self.pos.x - 1, self.pos.y);
                                 }
@@ -1377,7 +1298,6 @@ export const sampleBots: Bot[] = [
                         }
                         if (world.isSolid(x + 1, y)) {
                             if (world.isRock(x + 1, y)) {
-                                if (self.carryingRock) return dropRock(x - 1, y);
                                 return pickUpRock(x + 1, y);
                             }
                             return dig(x + 1, y);
@@ -1438,19 +1358,6 @@ export const sampleBots: Bot[] = [
 
                     if (world.isReachableFrom(x, y, ox, oy) && world.isSolid(ox, oy) && !world.isFallingRock(ox, oy)) {
                         if (world.getCell(ox, oy) == Cell.Rock) {
-                            if (self.carryingRock) {
-                                if (!world.isSolid(x + 1, y)) return dropRock(x + 1, y);
-                                if (!world.isSolid(x + 1, y + 1) && world.isReachableFrom(x, y, x + 1, y + 1)) return dropRock(x + 1, y + 1);
-                                if (!world.isSolid(x + 1, y - 1) && world.isReachableFrom(x, y, x + 1, y - 1)) return dropRock(x + 1, y - 1);
-                                if (!world.isRock(x + 1, y)) return dig(x + 1, y);
-                                if (!world.isRock(x + 1, y + 1) && world.isReachableFrom(x, y, x + 1, y + 1)) return dig(x + 1, y + 1);
-                                if (!world.isRock(x + 1, y - 1) && world.isReachableFrom(x, y, x + 1, y - 1)) return dig(x + 1, y - 1);
-                                if (!world.isSolid(x - 1, y + 1) && world.isReachableFrom(x, y, x - 1, y + 1)) return dropRock(x - 1, y + 1);
-                                if (!world.isSolid(x - 1, y)) return dropRock(x - 1, y);
-                                if (!world.isSolid(x - 1, y - 1) && world.isReachableFrom(x, y, x - 1, y - 1)) return dropRock(x - 1, y - 1);
-                                return dropRock(x, y); // ouch
-                            }
-
                             return pickUpRock(ox, oy);
                         }
 
@@ -1466,19 +1373,6 @@ export const sampleBots: Bot[] = [
 
                     if (world.isReachableFrom(x, y, ox, oy) && world.isSolid(ox, oy) && !world.isFallingRock(ox, oy)) {
                         if (world.getCell(ox, oy) == Cell.Rock) {
-                            if (self.carryingRock) {
-                                if (!world.isSolid(x - 1, y)) return dropRock(x - 1, y);
-                                if (!world.isSolid(x - 1, y + 1) && world.isReachableFrom(x, y, x - 1, y + 1)) return dropRock(x - 1, y + 1);
-                                if (!world.isSolid(x - 1, y - 1) && world.isReachableFrom(x, y, x - 1, y - 1)) return dropRock(x - 1, y - 1);
-                                if (!world.isRock(x - 1, y)) return dig(x - 1, y);
-                                if (!world.isRock(x - 1, y + 1) && world.isReachableFrom(x, y, x - 1, y + 1)) return dig(x - 1, y + 1);
-                                if (!world.isRock(x - 1, y - 1) && world.isReachableFrom(x, y, x - 1, y - 1)) return dig(x - 1, y - 1);
-                                if (!world.isSolid(x + 1, y + 1) && world.isReachableFrom(x, y, x + 1, y + 1)) return dropRock(x + 1, y + 1);
-                                if (!world.isSolid(x + 1, y)) return dropRock(x + 1, y);
-                                if (!world.isSolid(x + 1, y - 1) && world.isReachableFrom(x, y, x + 1, y - 1)) return dropRock(x + 1, y - 1);
-                                return dropRock(x, y); // ouch
-                            }
-
                             return pickUpRock(ox, oy);
                         }
 
@@ -1718,14 +1612,14 @@ export const sampleBots: Bot[] = [
             if (bestTargetMove === null) {
                 if (world.isSolid(x - 1, y) && world.isSolid(x - 1, y + 1) && (!world.isSolid(x - 2, y + 1) || !world.isSolid(x - 2, y + 2) || !world.isSolid(x - 2, y)) && world.isReachableFrom(x, y, x - 1, y + 1)) {
                     if (world.isRock(x - 1, y + 1)) {
-                        if (!self.carryingRock) return pickUpRock(x - 1, y + 1);
+                        return pickUpRock(x - 1, y + 1);
                     } else {
                         return dig(x - 1, y + 1);
                     }
                 }
                 if (world.isSolid(x + 1, y) && world.isSolid(x + 1, y + 1) && (!world.isSolid(x + 2, y + 1) || !world.isSolid(x + 2, y + 2) || !world.isSolid(x + 2, y)) && world.isReachableFrom(x, y, x + 1, y + 1)) {
                     if (world.isRock(x + 1, y + 1)) {
-                        if (!self.carryingRock) return pickUpRock(x + 1, y + 1);
+                        return pickUpRock(x + 1, y + 1);
                     } else {
                         return dig(x + 1, y + 1);
                     }
@@ -1735,19 +1629,19 @@ export const sampleBots: Bot[] = [
                 // }
                 if (world.isSolid(x - 1, y) && !world.isSolid(x - 2, y) && !world.isSolid(x - 2, y - 2) && world.isSolid(x, y - 1)) {
                     if (world.isRock(x - 1, y)) {
-                        if (!self.carryingRock) return pickUpRock(x - 1, y);
+                        return pickUpRock(x - 1, y);
                     } else {
                         return dig(x - 1, y);
                     }
                 }
                 if (world.isSolid(x + 1, y) && !world.isSolid(x + 2, y) && !world.isSolid(x + 2, y - 2) && world.isSolid(x, y - 1)) {
                     if (world.isRock(x + 1, y)) {
-                        if (!self.carryingRock) return pickUpRock(x + 1, y);
+                        return pickUpRock(x + 1, y);
                     } else {
                         return dig(x + 1, y);
                     }
                 }
-                if (self.carryingRock) {
+                if (self.carryingRocks != 0) {
                     if (!world.isSolid(x - 1, y - 1) && !world.isSolid(x - 1, y - 2) && world.isReachableFrom(x, y, x - 1, y - 1)) return dropRock(x - 1, y - 1);
                     if (!world.isSolid(x + 1, y - 1) && !world.isSolid(x + 1, y - 2) && world.isReachableFrom(x, y, x + 1, y - 1)) return dropRock(x + 1, y - 1);
                 }
@@ -1897,20 +1791,6 @@ export const sampleBots: Bot[] = [
                         }
                         // Pick up rock if it's in the way
                         if (cellBeneath == Cell.Rock) {
-                            // If already carrying a rock, dig a hole off to the side to drop it in
-                            if (self.carryingRock) {
-                                if (!world.isSolid(self.pos.x - 1, self.pos.y)) {
-                                    return dropRock(self.pos.x - 1, self.pos.y);
-                                }
-                                if (!world.isSolid(self.pos.x + 1, self.pos.y)) {
-                                    return dropRock(self.pos.x + 1, self.pos.y);
-                                }
-                                if (world.getCell(self.pos.x - 1, self.pos.y) != Cell.Rock) {
-                                    return dig(self.pos.x - 1, self.pos.y);
-                                }
-                                return dig(self.pos.x + 1, self.pos.y);
-                            }
-
                             return pickUpRock(self.pos.x, self.pos.y - 1);
                         }
                         // Check if past dirt
@@ -2140,7 +2020,7 @@ export const sampleBots: Bot[] = [
         run(self, others, world) {
             const { x, y } = self.pos;
 
-            if (!self.carryingRock) {
+            if (self.carryingRocks == 0) {
                 // Find rock
 
                 const nearby = others.find(o => Math.abs(o.pos.x - x) <= 1 && Math.abs(o.pos.y - y) <= 1 && world.isReachableFrom(x, y, o.pos.x, o.pos.y));
@@ -2359,7 +2239,7 @@ export const sampleBots: Bot[] = [
         run(self, others, world): Move | null {
             const { x, y } = self.pos;
 
-            if (self.carryingRock) {
+            if (self.carryingRocks != 0) {
                 const nearby = others.find(o => world.isXAdjacent(o.pos.x, x) && o.pos.y == y - 1 && !world.isSolid(o.pos.x, o.pos.y + 1));
                 if (nearby !== undefined) return dropRock(nearby.pos.x, nearby.pos.y + 1);
             }
@@ -2399,7 +2279,7 @@ export const sampleBots: Bot[] = [
                 return nWorld;
             }
 
-            if (self.carryingRock) {
+            if (self.carryingRocks != 0) {
                 if (!world.isSolid(x - 1, y) && !world.isSolid(x - 1, y - 1) && !world.isSolid(x - 1, y - 2)) {
                     return dropRock(x - 1, y - 1);
                 }
@@ -2589,7 +2469,7 @@ export const sampleBots: Bot[] = [
                 self.ctx.boundRightWrapped = self.ctx.boundRight % world.width;
             }
 
-            if (self.carryingRock) {
+            if (self.carryingRocks != 0) {
                 const crushable = others.find(o => o.pos.y == y - 1 && o.pos.x != x && world.isReachableFrom(x, y, o.pos.x, o.pos.y + 1));
                 if (crushable !== undefined) return dropRock(crushable.pos.x, crushable.pos.y + 1);
             } else {
@@ -2658,49 +2538,6 @@ export const sampleBots: Bot[] = [
                     }
                 }
 
-                if (self.carryingRock) {
-                    if (x == (self.ctx.boundLeft + 1) % world.width) {
-                        if (self.ctx.noGoLeft) {
-                            delete self.ctx.noGoLeft;
-                        } else {
-                            if (world.isSolid(x - 1, y)) {
-                                if (world.isSolid(x, y + 1)) return dig(x, y + 1);
-                                if (world.isSolid(x - 1, y + 1)) return dig(x - 1, y + 1);
-                            }
-                            return left();
-                        }
-                    }
-                    if (x == (self.ctx.boundRight - 1 + world.width) % world.width) {
-                        if (self.ctx.noGoRight) {
-                            delete self.ctx.noGoRight;
-                        } else {
-                            if (world.isSolid(x + 1, y)) {
-                                if (world.isSolid(x, y + 1)) return dig(x, y + 1);
-                                if (world.isSolid(x + 1, y + 1)) return dig(x + 1, y + 1);
-                            }
-                            return right();
-                        }
-                    }
-                    if (x == self.ctx.boundLeft) {
-                        if (world.isReachableFrom(x, y, x - 1, y + 1) && !world.isSolid(x - 1, y + 1)) return dropRock(x - 1, y + 1);
-                        if (world.isReachableFrom(x, y, x - 1, y + 1) && !world.isRock(x - 1, y + 1) && !world.isRock(x - 1, y + 2)) return dig(x - 1, y + 1);
-                        if (world.isReachableFrom(x, y, x - 1, y) && !world.isSolid(x - 1, y)) return dropRock(x - 1, y);
-                        if (world.isReachableFrom(x, y, x - 1, y) && !world.isRock(x - 1, y) && !world.isRock(x - 1, y + 1)) return dig(x - 1, y);
-                        if (world.isReachableFrom(x, y, x - 1, y - 1) && !world.isSolid(x - 1, y + 1)) return dropRock(x - 1, y - 1);
-                        if (world.isReachableFrom(x, y, x - 1, y - 1) && !world.isRock(x - 1, y + 1) && !world.isRock(x - 1, y)) return dig(x - 1, y - 1);
-                        self.ctx.noGoLeft = true;
-                    }
-                    if (x == self.ctx.boundRightWrapped) {
-                        if (world.isReachableFrom(x, y, x + 1, y + 1) && !world.isSolid(x + 1, y + 1)) return dropRock(x + 1, y + 1);
-                        if (world.isReachableFrom(x, y, x + 1, y + 1) && !world.isRock(x + 1, y + 1) && !world.isRock(x + 1, y + 2)) return dig(x + 1, y + 1);
-                        if (world.isReachableFrom(x, y, x + 1, y) && !world.isSolid(x + 1, y)) return dropRock(x + 1, y);
-                        if (world.isReachableFrom(x, y, x + 1, y) && !world.isRock(x + 1, y) && !world.isRock(x + 1, y + 1)) return dig(x + 1, y);
-                        if (world.isReachableFrom(x, y, x + 1, y - 1) && !world.isSolid(x + 1, y + 1)) return dropRock(x + 1, y - 1);
-                        if (world.isReachableFrom(x, y, x + 1, y - 1) && !world.isRock(x + 1, y + 1) && !world.isRock(x + 1, y)) return dig(x + 1, y - 1);
-                        self.ctx.noGoRight = true;
-                    }
-                }
-
                 if (topSolidY <= world.groundHeight * 0.75 + 1) {
                     self.ctx.stage = 1;
                 } else {
@@ -2709,13 +2546,6 @@ export const sampleBots: Bot[] = [
 
                         if (world.isSolid(x + ox, topSolidY) && world.isReachableFrom(x, y, x + ox, topSolidY)) {
                             if (world.isRock(x + ox, topSolidY)) {
-                                if (self.carryingRock) {
-                                    if (world.isReachableFrom(x, y, x - 1, y - 1) && !world.isSolid(x - 1, y - 1)) return dropRock(x - 1, y - 1);
-                                    if (world.isReachableFrom(x, y, x + 1, y - 1) && !world.isSolid(x + 1, y - 1)) return dropRock(x + 1, y - 1);
-                                    if (world.isReachableFrom(x, y, x - 1, y - 1) && !world.isRock(x - 1, y - 1)) return dig(x - 1, y - 1);
-                                    if (world.isReachableFrom(x, y, x + 1, y - 1) && !world.isRock(x + 1, y - 1)) return dig(x + 1, y - 1);
-                                    if (self.hp > 10) return dropRock(x, y); // ouch
-                                }
                                 return pickUpRock(x + ox, topSolidY);
                             } else {
                                 return dig(x + ox, topSolidY);
@@ -2730,11 +2560,6 @@ export const sampleBots: Bot[] = [
                             if (world.isSolid(x, y + 1)) return dig(x, y + 1);
                             if (world.isSolid(x - 1, y + 1)) {
                                 if (world.getCell(x - 1, y + 1) == Cell.Rock) {
-                                    if (self.carryingRock) {
-                                        if (!world.isRock(x - 1, y)) return dig(x - 1, y);
-                                        if (!world.isSolid(x + 1, y)) return dropRock(x + 1, y);
-                                        if (self.hp > 10) return dropRock(x, y); // ouch
-                                    }
                                     return pickUpRock(x - 1, y + 1);
                                 }
                                 return dig(x - 1, y + 1);
@@ -2746,17 +2571,6 @@ export const sampleBots: Bot[] = [
                             }
 
                             if (world.isRock(x, y - 1)) {
-                                if (self.carryingRock) {
-                                    if (world.isReachableFrom(x, y, x - 1, y - 1) && !world.isSolid(x - 1, y - 1)) return dropRock(x - 1, y - 1);
-                                    if (world.isReachableFrom(x, y, x + 1, y - 1) && !world.isSolid(x + 1, y - 1)) return dropRock(x + 1, y - 1);
-                                    if (world.isReachableFrom(x, y, x - 1, y - 1) && !world.isRock(x - 1, y - 1)) return dig(x - 1, y - 1);
-                                    if (world.isReachableFrom(x, y, x + 1, y - 1) && !world.isRock(x + 1, y - 1)) return dig(x + 1, y - 1);
-                                    if (world.isReachableFrom(x, y, x - 1, y) && !world.isSolid(x - 1, y)) return dropRock(x - 1, y);
-                                    if (world.isReachableFrom(x, y, x + 1, y) && !world.isSolid(x + 1, y)) return dropRock(x + 1, y);
-                                    if (world.isReachableFrom(x, y, x - 1, y) && !world.isRock(x - 1, y)) return dig(x - 1, y);
-                                    if (world.isReachableFrom(x, y, x + 1, y) && !world.isRock(x + 1, y)) return dig(x + 1, y);
-                                    if (self.hp > 10) return dropRock(x, y); // ouch
-                                }
                                 return pickUpRock(x, y - 1);
                             } else {
                                 return dig(x, y - 1);
@@ -2768,11 +2582,6 @@ export const sampleBots: Bot[] = [
                             if (world.isSolid(x, y + 1)) return dig(x, y + 1);
                             if (world.isSolid(x + 1, y + 1)) {
                                 if (world.getCell(x + 1, y + 1) == Cell.Rock) {
-                                    if (self.carryingRock) {
-                                        if (!world.isRock(x + 1, y)) return dig(x + 1, y);
-                                        if (!world.isSolid(x - 1, y)) return dropRock(x - 1, y);
-                                        if (self.hp > 10) return dropRock(x, y); // ouch
-                                    }
                                     return pickUpRock(x + 1, y + 1);
                                 }
                                 return dig(x + 1, y + 1);
@@ -2785,17 +2594,6 @@ export const sampleBots: Bot[] = [
                             }
 
                             if (world.isRock(x, y - 1)) {
-                                if (self.carryingRock) {
-                                    if (world.isReachableFrom(x, y, x - 1, y - 1) && !world.isSolid(x - 1, y - 1)) return dropRock(x - 1, y - 1);
-                                    if (world.isReachableFrom(x, y, x + 1, y - 1) && !world.isSolid(x + 1, y - 1)) return dropRock(x + 1, y - 1);
-                                    if (world.isReachableFrom(x, y, x - 1, y - 1) && !world.isRock(x - 1, y - 1)) return dig(x - 1, y - 1);
-                                    if (world.isReachableFrom(x, y, x + 1, y - 1) && !world.isRock(x + 1, y - 1)) return dig(x + 1, y - 1);
-                                    if (world.isReachableFrom(x, y, x - 1, y) && !world.isSolid(x - 1, y)) return dropRock(x - 1, y);
-                                    if (world.isReachableFrom(x, y, x + 1, y) && !world.isSolid(x + 1, y)) return dropRock(x + 1, y);
-                                    if (world.isReachableFrom(x, y, x - 1, y) && !world.isRock(x - 1, y)) return dig(x - 1, y);
-                                    if (world.isReachableFrom(x, y, x + 1, y) && !world.isRock(x + 1, y)) return dig(x + 1, y);
-                                    if (self.hp > 10) return dropRock(x, y); // ouch
-                                }
                                 return pickUpRock(x, y - 1);
                             } else {
                                 return dig(x, y - 1);
@@ -2815,17 +2613,6 @@ export const sampleBots: Bot[] = [
                             }
 
                             if (world.isRock(x, y - 1)) {
-                                if (self.carryingRock) {
-                                    if (world.isReachableFrom(x, y, x - 1, y - 1) && !world.isSolid(x - 1, y - 1)) return dropRock(x - 1, y - 1);
-                                    if (world.isReachableFrom(x, y, x + 1, y - 1) && !world.isSolid(x + 1, y - 1)) return dropRock(x + 1, y - 1);
-                                    if (world.isReachableFrom(x, y, x - 1, y - 1) && !world.isRock(x - 1, y - 1)) return dig(x - 1, y - 1);
-                                    if (world.isReachableFrom(x, y, x + 1, y - 1) && !world.isRock(x + 1, y - 1)) return dig(x + 1, y - 1);
-                                    if (world.isReachableFrom(x, y, x - 1, y) && !world.isSolid(x - 1, y)) return dropRock(x - 1, y);
-                                    if (world.isReachableFrom(x, y, x + 1, y) && !world.isSolid(x + 1, y)) return dropRock(x + 1, y);
-                                    if (world.isReachableFrom(x, y, x - 1, y) && !world.isRock(x - 1, y)) return dig(x - 1, y);
-                                    if (world.isReachableFrom(x, y, x + 1, y) && !world.isRock(x + 1, y)) return dig(x + 1, y);
-                                    if (self.hp > 10) return dropRock(x, y); // ouch
-                                }
                                 return pickUpRock(x, y - 1);
                             } else {
                                 return dig(x, y - 1);

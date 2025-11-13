@@ -136,7 +136,7 @@ export class SidebarMgr {
         props.appendChild(this.buildProp("fullness", creature.fullness));
         props.appendChild(this.buildProp("falling", creature.falling));
         props.appendChild(this.buildProp("fallDist", creature.fallDist));
-        props.appendChild(this.buildProp("carryingRock", creature.carryingRock));
+        props.appendChild(this.buildProp("carryingRocks", creature.carryingRocks));
         other.appendChild(props);
 
         const ctxH = document.createElement("h4");
@@ -215,7 +215,7 @@ export class SidebarMgr {
         node.getElementsByClassName("prop_fullness")[0].textContent = creature.fullness.toString();
         node.getElementsByClassName("prop_falling")[0].textContent = creature.falling.toString();
         node.getElementsByClassName("prop_fallDist")[0].textContent = creature.fallDist.toString();
-        node.getElementsByClassName("prop_carryingRock")[0].textContent = creature.carryingRock.toString();
+        node.getElementsByClassName("prop_carryingRocks")[0].textContent = creature.carryingRocks.toString();
 
         node.getElementsByClassName("ctx")[0].textContent = JSON.stringify(creature.ctx, null, 2);
 
