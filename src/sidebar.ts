@@ -86,10 +86,6 @@ export class SidebarMgr {
                         li.textContent += "dig(" + move.move.pos.x + ", " + move.move.pos.y + ")";
                         break;
                     }
-                    case "pick_up": {
-                        li.textContent += "pickUpRock(" + move.move.pos.x + ", " + move.move.pos.y + ")";
-                        break;
-                    }
                     case "drop": {
                         li.textContent += "dropRock(" + move.move.pos.x + ", " + move.move.pos.y + ")";
                         break;

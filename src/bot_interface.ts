@@ -29,10 +29,6 @@ export function dig(x: number, y: number): Move {
     return { type: "dig", pos: { x, y } };
 }
 
-export function pickUpRock(x: number, y: number): Move {
-    return { type: "pick_up", pos: { x, y } };
-}
-
 export function dropRock(x: number, y: number): Move {
     return { type: "drop", pos: { x, y } };
 }

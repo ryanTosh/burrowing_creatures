@@ -147,7 +147,7 @@ if (window.superHot) {
             if (player === undefined) return;
 
             const { x, y } = player.pos;
-            const modeType = mode == "rock" ? controller.getWorld().isSolid(x, y) ? "pick_up" : "drop" : mode;
+            const modeType = mode == "rock" ? "drop" : mode;
             if (superHot.ctx!.resolveMove !== null) superHot.ctx!.resolveMove(controls.isBindDown("shift") ? { type: modeType, pos: { x: x, y: y } } : null);
         });
         controls.onBindDown("up", () => {
@@ -155,7 +155,7 @@ if (window.superHot) {
             if (player === undefined) return;
 
             const { x, y } = player.pos;
-            const modeType = mode == "rock" ? controller.getWorld().isSolid(x, y + 1) ? "pick_up" : "drop" : mode;
+            const modeType = mode == "rock" ? "drop" : mode;
             if (superHot.ctx!.resolveMove !== null) superHot.ctx!.resolveMove(controls.isBindDown("shift") ? { type: modeType, pos: { x: x, y: y + 1 } } : climbUp());
         });
         controls.onBindDown("down", () => {
@@ -163,7 +163,7 @@ if (window.superHot) {
             if (player === undefined) return;
 
             const { x, y } = player.pos;
-            const modeType = mode == "rock" ? controller.getWorld().isSolid(x, y - 1) ? "pick_up" : "drop" : mode;
+            const modeType = mode == "rock" ? "drop" : mode;
             if (superHot.ctx!.resolveMove !== null) superHot.ctx!.resolveMove(controls.isBindDown("shift") ? { type: modeType, pos: { x: x, y: y - 1 } } : climbDown());
         });
         controls.onBindDown("left", () => {
@@ -171,7 +171,7 @@ if (window.superHot) {
             if (player === undefined) return;
 
             const { x, y } = player.pos;
-            const modeType = mode == "rock" ? controller.getWorld().isSolid(x - 1, y) ? "pick_up" : "drop" : mode;
+            const modeType = mode == "rock" ? "drop" : mode;
             if (superHot.ctx!.resolveMove !== null) superHot.ctx!.resolveMove(controls.isBindDown("shift") ? { type: modeType, pos: { x: x - 1, y: y } } : left());
         });
         controls.onBindDown("right", () => {
@@ -179,7 +179,7 @@ if (window.superHot) {
             if (player === undefined) return;
 
             const { x, y } = player.pos;
-            const modeType = mode == "rock" ? controller.getWorld().isSolid(x + 1, y) ? "pick_up" : "drop" : mode;
+            const modeType = mode == "rock" ? "drop" : mode;
             if (superHot.ctx!.resolveMove !== null) superHot.ctx!.resolveMove(controls.isBindDown("shift") ? { type: modeType, pos: { x: x + 1, y: y } } : right());
         });
         controls.onBindDown("-1_-1", () => {
@@ -189,7 +189,7 @@ if (window.superHot) {
             if (player === undefined) return;
 
             const { x, y } = player.pos;
-            const modeType = mode == "rock" ? controller.getWorld().isSolid(x - 1, y - 1) ? "pick_up" : "drop" : mode;
+            const modeType = mode == "rock" ? "drop" : mode;
             if (superHot.ctx!.resolveMove !== null) superHot.ctx!.resolveMove({ type: modeType, pos: { x: x - 1, y: y - 1 } });
         });
         controls.onBindDown("1_-1", () => {
@@ -199,7 +199,7 @@ if (window.superHot) {
             if (player === undefined) return;
 
             const { x, y } = player.pos;
-            const modeType = mode == "rock" ? controller.getWorld().isSolid(x + 1, y - 1) ? "pick_up" : "drop" : mode;
+            const modeType = mode == "rock" ? "drop" : mode;
             if (superHot.ctx!.resolveMove !== null) superHot.ctx!.resolveMove({ type: modeType, pos: { x: x + 1, y: y - 1 } });
         });
         controls.onBindDown("-1_1", () => {
@@ -209,7 +209,7 @@ if (window.superHot) {
             if (player === undefined) return;
 
             const { x, y } = player.pos;
-            const modeType = mode == "rock" ? controller.getWorld().isSolid(x - 1, y + 1) ? "pick_up" : "drop" : mode;
+            const modeType = mode == "rock" ? "drop" : mode;
             if (superHot.ctx!.resolveMove !== null) superHot.ctx!.resolveMove({ type: modeType, pos: { x: x - 1, y: y + 1 } });
         });
         controls.onBindDown("1_1", () => {
@@ -219,7 +219,7 @@ if (window.superHot) {
             if (player === undefined) return;
 
             const { x, y } = player.pos;
-            const modeType = mode == "rock" ? controller.getWorld().isSolid(x + 1, y + 1) ? "pick_up" : "drop" : mode;
+            const modeType = mode == "rock" ? "drop" : mode;
             if (superHot.ctx!.resolveMove !== null) superHot.ctx!.resolveMove({ type: modeType, pos: { x: x + 1, y: y + 1 } });
         });
         controls.onBindDown("mode_dig", () => {

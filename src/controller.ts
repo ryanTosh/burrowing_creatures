@@ -3,7 +3,7 @@ import { SuperHot } from "./super_hot";
 import { Cell, World } from "./world";
 
 export interface InteractMove {
-    type: "dig" | "pick_up" | "drop" | "eat" | "bite";
+    type: "dig" | "drop" | "eat" | "bite";
     pos: { x: number, y: number };
 }
 
@@ -472,8 +472,8 @@ export class Controller {
                 if (typeof move != "object") throw new Error("Invalid move: `typeof` is not `\"object\"`");
                 if (Array.isArray(move)) throw new Error("Invalid move: is an array");
                 if (!("type" in move)) throw new Error("Invalid move: non-null with no `type`");
-                if (!["left", "right", "climb_up", "climb_down", "dig", "pick_up", "drop", "eat", "bite"].includes(move.type)) throw new Error("Invalid move: invalid `type`: `" + JSON.stringify(move.type) + "`");
-                if (["dig", "pick_up", "drop", "eat"].includes(move.type) || move.type == "bite" && "pos" in move) {
+                if (!["left", "right", "climb_up", "climb_down", "dig", "drop", "eat", "bite"].includes(move.type)) throw new Error("Invalid move: invalid `type`: `" + JSON.stringify(move.type) + "`");
+                if (["dig", "drop", "eat"].includes(move.type) || move.type == "bite" && "pos" in move) {
                     if (!("pos" in move)) throw new Error("Invalid move: missing `pos` for " + move.type);
                     if (move.pos === undefined) throw new Error("Invalid move: `move.pos` is `undefined` for " + move.type);
                     if (move.pos === null) throw new Error("Invalid move: `move.pos` is `null` for " + move.type);
@@ -554,23 +554,18 @@ export class Controller {
 
                         return true;
                     }
+                    case Cell.Rock: {
+                        if (safe && move.pos.y == creature.pos.y && !this.world.isSolid(creature.pos.x, creature.pos.y - 1)) return false;
+
+                        this.world.setCell(move.pos.x, move.pos.y, Cell.Empty);
+                        creature.carryingRocks++;
+
+                        return true;
+                    }
                     default: {
                         return false;
                     }
                 }
-            }
-            case "pick_up": {
-                if (!isValidTarget(creature, move.pos, this.world)) return false;
-                if (safe && move.pos.y == creature.pos.y && !this.world.isSolid(creature.pos.x, creature.pos.y - 1)) return false;
-
-                const cell = this.world.getCell(move.pos.x, move.pos.y);
-
-                if (cell != Cell.Rock) return false;
-
-                this.world.setCell(move.pos.x, move.pos.y, Cell.Empty);
-                creature.carryingRocks++;
-
-                return true;
             }
             case "drop": {
                 if (!isValidTarget(creature, move.pos, this.world)) return false;
