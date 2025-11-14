@@ -46,7 +46,7 @@ let controller!: Controller;
 let graphics!: Graphics;
 
 if (window.superHot) {
-    const superHot: SuperHot = { ctx: { creature: null, resolveMove: null, safe: true } };
+    const superHot: SuperHot = { ctx: { creature: null, resolveMove: null, safe: true, hand: "rock" } };
 
     const controls = new Controls([
         {
@@ -105,7 +105,7 @@ if (window.superHot) {
             mouseBtns: []
         },
         {
-            id: "mode_rock",
+            id: "mode_place",
             keys: ["KeyR"],
             mouseBtns: []
         },
@@ -140,14 +140,14 @@ if (window.superHot) {
     graphics.startFrames();
 
     await new Promise(async (R) => {
-        let mode: "dig" | "rock" | "eat" | "bite" = "dig";
+        let mode: "dig" | "place" | "eat" | "bite" = "dig";
 
         controls.onBindDown("still", () => {
             const player = controller.getCreatures().find(c => c.id == 0);
             if (player === undefined) return;
 
             const { x, y } = player.pos;
-            const modeType = mode == "rock" ? "drop" : mode;
+            const modeType = mode == "place" ? superHot.ctx!.hand == "rock" ? "dropRock" : "plantSeeds" : mode;
             if (superHot.ctx!.resolveMove !== null) superHot.ctx!.resolveMove(controls.isBindDown("shift") ? { type: modeType, pos: { x: x, y: y } } : null);
         });
         controls.onBindDown("up", () => {
@@ -155,7 +155,7 @@ if (window.superHot) {
             if (player === undefined) return;
 
             const { x, y } = player.pos;
-            const modeType = mode == "rock" ? "drop" : mode;
+            const modeType = mode == "place" ? superHot.ctx!.hand == "rock" ? "dropRock" : "plantSeeds" : mode;
             if (superHot.ctx!.resolveMove !== null) superHot.ctx!.resolveMove(controls.isBindDown("shift") ? { type: modeType, pos: { x: x, y: y + 1 } } : climbUp());
         });
         controls.onBindDown("down", () => {
@@ -163,7 +163,7 @@ if (window.superHot) {
             if (player === undefined) return;
 
             const { x, y } = player.pos;
-            const modeType = mode == "rock" ? "drop" : mode;
+            const modeType = mode == "place" ? superHot.ctx!.hand == "rock" ? "dropRock" : "plantSeeds" : mode;
             if (superHot.ctx!.resolveMove !== null) superHot.ctx!.resolveMove(controls.isBindDown("shift") ? { type: modeType, pos: { x: x, y: y - 1 } } : climbDown());
         });
         controls.onBindDown("left", () => {
@@ -171,7 +171,7 @@ if (window.superHot) {
             if (player === undefined) return;
 
             const { x, y } = player.pos;
-            const modeType = mode == "rock" ? "drop" : mode;
+            const modeType = mode == "place" ? superHot.ctx!.hand == "rock" ? "dropRock" : "plantSeeds" : mode;
             if (superHot.ctx!.resolveMove !== null) superHot.ctx!.resolveMove(controls.isBindDown("shift") ? { type: modeType, pos: { x: x - 1, y: y } } : left());
         });
         controls.onBindDown("right", () => {
@@ -179,7 +179,7 @@ if (window.superHot) {
             if (player === undefined) return;
 
             const { x, y } = player.pos;
-            const modeType = mode == "rock" ? "drop" : mode;
+            const modeType = mode == "place" ? superHot.ctx!.hand == "rock" ? "dropRock" : "plantSeeds" : mode;
             if (superHot.ctx!.resolveMove !== null) superHot.ctx!.resolveMove(controls.isBindDown("shift") ? { type: modeType, pos: { x: x + 1, y: y } } : right());
         });
         controls.onBindDown("-1_-1", () => {
@@ -189,7 +189,7 @@ if (window.superHot) {
             if (player === undefined) return;
 
             const { x, y } = player.pos;
-            const modeType = mode == "rock" ? "drop" : mode;
+            const modeType = mode == "place" ? superHot.ctx!.hand == "rock" ? "dropRock" : "plantSeeds" : mode;
             if (superHot.ctx!.resolveMove !== null) superHot.ctx!.resolveMove({ type: modeType, pos: { x: x - 1, y: y - 1 } });
         });
         controls.onBindDown("1_-1", () => {
@@ -199,7 +199,7 @@ if (window.superHot) {
             if (player === undefined) return;
 
             const { x, y } = player.pos;
-            const modeType = mode == "rock" ? "drop" : mode;
+            const modeType = mode == "place" ? superHot.ctx!.hand == "rock" ? "dropRock" : "plantSeeds" : mode;
             if (superHot.ctx!.resolveMove !== null) superHot.ctx!.resolveMove({ type: modeType, pos: { x: x + 1, y: y - 1 } });
         });
         controls.onBindDown("-1_1", () => {
@@ -209,7 +209,7 @@ if (window.superHot) {
             if (player === undefined) return;
 
             const { x, y } = player.pos;
-            const modeType = mode == "rock" ? "drop" : mode;
+            const modeType = mode == "place" ? superHot.ctx!.hand == "rock" ? "dropRock" : "plantSeeds" : mode;
             if (superHot.ctx!.resolveMove !== null) superHot.ctx!.resolveMove({ type: modeType, pos: { x: x - 1, y: y + 1 } });
         });
         controls.onBindDown("1_1", () => {
@@ -219,14 +219,18 @@ if (window.superHot) {
             if (player === undefined) return;
 
             const { x, y } = player.pos;
-            const modeType = mode == "rock" ? "drop" : mode;
+            const modeType = mode == "place" ? superHot.ctx!.hand == "rock" ? "dropRock" : "plantSeeds" : mode;
             if (superHot.ctx!.resolveMove !== null) superHot.ctx!.resolveMove({ type: modeType, pos: { x: x + 1, y: y + 1 } });
         });
         controls.onBindDown("mode_dig", () => {
             mode = "dig";
         });
-        controls.onBindDown("mode_rock", () => {
-            mode = "rock";
+        controls.onBindDown("mode_place", () => {
+            if (mode == "place") {
+                superHot.ctx!.hand = superHot.ctx!.hand == "rock" ? "seeds" : "rock";
+            } else {
+                mode = "place";
+            }
         });
         controls.onBindDown("mode_eat", () => {
             mode = "eat";

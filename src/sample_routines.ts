@@ -1,4 +1,4 @@
-import { biteByCreature, Bot, climbDown, climbUp, dig, dropRock, eat, left, pickUpRock, right } from "./bot_interface";
+import { biteByCreature, Bot, climbDown, climbUp, dig, dropRock, eat, left, right } from "./bot_interface";
 import { Creature, Move } from "./controller";
 import { Cell, World } from "./world";
 

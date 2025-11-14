@@ -30,7 +30,8 @@ export enum Cell {
     ChippedStone,
     MossyChippedStone,
     Bedrock,
-    MossyBedrock
+    MossyBedrock,
+    Seedling
 }
 
 export function cellIsRock(cell: Cell): boolean {
@@ -42,7 +43,7 @@ export function cellIsFallingRock(cell: Cell): boolean {
 }
 
 export function cellIsSolid(cell: Cell): boolean {
-    return !(cell == Cell.Empty || cell == Cell.SmallGrassTufts || cell == Cell.LargeGrassTufts);
+    return !(cell == Cell.Empty || cell == Cell.SmallGrassTufts || cell == Cell.LargeGrassTufts || cell == Cell.Seedling);
 }
 
 export enum BgCell {

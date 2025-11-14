@@ -38,6 +38,8 @@ export class Graphics {
     private mossyChippedStoneImg?: HTMLImageElement;
     private bedrockImg?: HTMLImageElement;
     private mossyBedrockImg?: HTMLImageElement;
+    private seedsImg?: HTMLImageElement;
+    private seedlingImg?: HTMLImageElement;
 
     private x: number;
     private y: number;
@@ -175,7 +177,9 @@ export class Graphics {
             this.chippedStoneImg,
             this.mossyChippedStoneImg,
             this.bedrockImg,
-            this.mossyBedrockImg
+            this.mossyBedrockImg,
+            this.seedsImg,
+            this.seedlingImg
         ] = await Promise.all([
             this.loadImage("imgs/creature.png"),
             this.loadImage("imgs/small_grass_tufts.png"),
@@ -189,7 +193,9 @@ export class Graphics {
             this.loadImage("imgs/chipped_stone.png"),
             this.loadImage("imgs/mossy_chipped_stone.png"),
             this.loadImage("imgs/bedrock.png"),
-            this.loadImage("imgs/mossy_bedrock.png")
+            this.loadImage("imgs/mossy_bedrock.png"),
+            this.loadImage("imgs/seeds.png"),
+            this.loadImage("imgs/seedling.png")
         ]);
     }
 
@@ -297,17 +303,31 @@ export class Graphics {
                     }
                     tags.push({ x: xOff + this.cellSize / 2, y: yOff - 6, strs: tagStrings });
 
-                    if (cell == Cell.SmallGrassTufts || cell == Cell.LargeGrassTufts) {
-                        this.ctx.drawImage(this.cellToImg(cell)!, xOff, yOff, this.cellSize, this.cellSize);
+                    if (cell == Cell.SmallGrassTufts || cell == Cell.LargeGrassTufts || cell == Cell.Seedling) {
+                        if (cell == Cell.Seedling) {
+                            this.ctx.save();
+                            this.ctx.translate(0, this.cellSize / 7);
+                            this.ctx.drawImage(this.cellToImg(cell)!, xOff, yOff, this.cellSize, this.cellSize);
+                            this.ctx.restore();
+                        } else {
+                            this.ctx.drawImage(this.cellToImg(cell)!, xOff, yOff, this.cellSize, this.cellSize);
+                        }
                     }
                 } else {
-                    if (cell == Cell.Empty || cell == Cell.SmallGrassTufts || cell == Cell.LargeGrassTufts) {
+                    if (cell == Cell.Empty || cell == Cell.SmallGrassTufts || cell == Cell.LargeGrassTufts || cell == Cell.Seedling) {
                         this.ctx.fillStyle = this.bgCellToColor(world.getBgCell(x, y), y - world.groundHeight);
                         this.ctx.fillRect(xOff, yOff, this.cellSize, this.cellSize);
                     }
 
                     if (cell != Cell.Empty) {
-                        this.ctx.drawImage(this.cellToImg(cell)!, xOff, yOff, this.cellSize, this.cellSize);
+                        if (cell == Cell.Seedling) {
+                            this.ctx.save();
+                            this.ctx.translate(0, this.cellSize / 7);
+                            this.ctx.drawImage(this.cellToImg(cell)!, xOff, yOff, this.cellSize, this.cellSize);
+                            this.ctx.restore();
+                        } else {
+                            this.ctx.drawImage(this.cellToImg(cell)!, xOff, yOff, this.cellSize, this.cellSize);
+                        }
                     }
                 }
             }
@@ -364,7 +384,10 @@ export class Graphics {
         }
 
         if (this.superHot.ctx !== null) {
-            if (!this.superHot.ctx.safe) {
+            const ctx = this.superHot.ctx;
+            const player = ctx.creature;
+
+            if (!ctx.safe) {
                 this.ctx.fillStyle = "rgba(127.5, 0, 0, 0.5)";
 
                 this.ctx.fillRect(0, 0, this.width, 4);
@@ -373,25 +396,41 @@ export class Graphics {
                 this.ctx.fillRect(this.width - 4, 0, 4, this.height);
             }
 
-            if (this.superHot.ctx.creature !== null) {
+            if (player !== null) {
                 this.ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
                 this.ctx.fillRect(8, this.height - 8 - 80, 80, 80);
 
-                if (this.superHot.ctx.creature.carryingRocks != 0) {
-                    this.ctx.drawImage(this.rockImg!, 24, this.height - 8 - 80 + 16, 48, 48);
+                if ((ctx.hand == "rock" ? player.carryingRocks : player.carryingSeeds) != 0) {
+                    this.ctx.drawImage(ctx.hand == "rock" ? this.rockImg! : this.seedsImg!, 24, this.height - 8 - 80 + 16, 48, 48);
 
-                    if (this.superHot.ctx.creature.carryingRocks > 1) {
+                    if ((ctx.hand == "rock" ? player.carryingRocks : player.carryingSeeds) > 1) {
                         this.ctx.font = "500 24px 'Roboto Mono', monospace";
-                        this.ctx.textAlign = "left";
-                        this.ctx.textBaseline = "top";
+                        this.ctx.textAlign = "center";
+                        this.ctx.textBaseline = "middle";
 
                         this.ctx.fillStyle = "#ffffff";
-                        this.ctx.fillText(String(this.superHot.ctx.creature.carryingRocks), 24 + 48 * 5.5/7, this.height - 8 - 80 + 16 + 48 * 5.5/7);
+                        this.ctx.fillText(String(ctx.hand == "rock" ? player.carryingRocks : player.carryingSeeds), 24 + 48, this.height - 8 - 80 + 16 + 48);
                     }
                 }
 
-                if (this.superHot.ctx.creature.fullness < 25) {
-                    this.ctx.fillStyle = "rgba(255, 0, 0, " + 0.005 * (25 - this.superHot.ctx.creature.fullness) + ")";
+                this.ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+                this.ctx.fillRect(100, this.height - 8 - 64, 64, 64);
+
+                if ((ctx.hand == "rock" ? player.carryingSeeds : player.carryingRocks) != 0) {
+                    this.ctx.drawImage(ctx.hand == "rock" ? this.seedsImg! : this.rockImg!, 112, this.height - 8 - 64 + 12, 40, 40);
+
+                    if ((ctx.hand == "rock" ? player.carryingSeeds : player.carryingRocks) > 1) {
+                        this.ctx.font = "500 24px 'Roboto Mono', monospace";
+                        this.ctx.textAlign = "center";
+                        this.ctx.textBaseline = "middle";
+
+                        this.ctx.fillStyle = "#ffffff";
+                        this.ctx.fillText(String(ctx.hand == "rock" ? player.carryingSeeds : player.carryingRocks), 112 + 40, this.height - 8 - 64 + 12 + 40);
+                    }
+                }
+
+                if (player.fullness < 25) {
+                    this.ctx.fillStyle = "rgba(255, 0, 0, " + 0.005 * (25 - player.fullness) + ")";
 
                     this.ctx.fillRect(0, 0, this.width, this.height);
                 }
@@ -502,6 +541,8 @@ export class Graphics {
                 return this.bedrockImg!;
             case Cell.MossyBedrock:
                 return this.mossyBedrockImg!;
+            case Cell.Seedling:
+                return this.seedlingImg!;
         }
     }
 

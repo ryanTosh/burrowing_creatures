@@ -30,7 +30,11 @@ export function dig(x: number, y: number): Move {
 }
 
 export function dropRock(x: number, y: number): Move {
-    return { type: "drop", pos: { x, y } };
+    return { type: "dropRock", pos: { x, y } };
+}
+
+export function plantSeeds(x: number, y: number): Move {
+    return { type: "plantSeeds", pos: { x, y } };
 }
 
 export function eat(x: number, y: number): Move {

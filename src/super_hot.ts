@@ -8,4 +8,5 @@ export interface SuperHotCtx {
     creature: Creature | null;
     resolveMove: ((move: Move) => void) | null;
     safe: boolean;
+    hand: "rock" | "seeds";
 }

@@ -86,8 +86,12 @@ export class SidebarMgr {
                         li.textContent += "dig(" + move.move.pos.x + ", " + move.move.pos.y + ")";
                         break;
                     }
-                    case "drop": {
+                    case "dropRock": {
                         li.textContent += "dropRock(" + move.move.pos.x + ", " + move.move.pos.y + ")";
+                        break;
+                    }
+                    case "plantSeeds": {
+                        li.textContent += "plantSeeds(" + move.move.pos.x + ", " + move.move.pos.y + ")";
                         break;
                     }
                     case "eat": {
@@ -133,6 +137,7 @@ export class SidebarMgr {
         props.appendChild(this.buildProp("falling", creature.falling));
         props.appendChild(this.buildProp("fallDist", creature.fallDist));
         props.appendChild(this.buildProp("carryingRocks", creature.carryingRocks));
+        props.appendChild(this.buildProp("carryingSeeds", creature.carryingSeeds));
         other.appendChild(props);
 
         const ctxH = document.createElement("h4");
@@ -212,6 +217,7 @@ export class SidebarMgr {
         node.getElementsByClassName("prop_falling")[0].textContent = creature.falling.toString();
         node.getElementsByClassName("prop_fallDist")[0].textContent = creature.fallDist.toString();
         node.getElementsByClassName("prop_carryingRocks")[0].textContent = creature.carryingRocks.toString();
+        node.getElementsByClassName("prop_carryingSeeds")[0].textContent = creature.carryingSeeds.toString();
 
         node.getElementsByClassName("ctx")[0].textContent = JSON.stringify(creature.ctx, null, 2);
 

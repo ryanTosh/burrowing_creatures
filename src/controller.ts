@@ -3,7 +3,7 @@ import { SuperHot } from "./super_hot";
 import { Cell, World } from "./world";
 
 export interface InteractMove {
-    type: "dig" | "drop" | "eat" | "bite";
+    type: "dig" | "dropRock" | "plantSeeds" | "eat" | "bite";
     pos: { x: number, y: number };
 }
 
@@ -27,6 +27,7 @@ export interface Creature {
     falling: boolean;
     fallDist: number;
     carryingRocks: number;
+    carryingSeeds: number;
     bot?: Bot;
     ctx?: any;
     lastMoves?: LastMove[];
@@ -48,10 +49,15 @@ const SMALL_GRASS_TUFTS_FULLNESS = 25;
 const LARGE_GRASS_TUFTS_FULLNESS = 25;
 const GRASSY_DIRT_FULLNESS = 25;
 const MOSS_FULLNESS = 20;
+const SEEDLING_FULLNESS = 10;
 const SMALL_GRASS_TUFTS_HIT_POINTS = 1;
 const LARGE_GRASS_TUFTS_HIT_POINTS = 1;
 const GRASSY_DIRT_HIT_POINTS = 1;
 const MOSS_HIT_POINTS = 0;
+const SEEDLING_HIT_POINTS = 0;
+
+const SMALL_GRASS_TUFTS_SEEDS_ODDS = 0.1;
+const LARGE_GRASS_TUFTS_SEEDS_ODDS = 0.1;
 
 const BARREN_DIRT_SKY_TO_DIRT_ODDS = 1 / 128;
 const DIRT_SKY_TO_GRASSY_DIRT_ODDS = 1 / 128;
@@ -121,6 +127,7 @@ export class Controller {
                     fallDist: 0,
                     falling: false,
                     carryingRocks: 0,
+                    carryingSeeds: 0,
                     bot: bots[j],
                     ctx: {},
                     lastMoves: []
@@ -149,6 +156,7 @@ export class Controller {
             fallDist: 0,
             falling: false,
             carryingRocks: 0,
+            carryingSeeds: 0,
             bot: {
                 id: "__player__",
                 async runPromise() {
@@ -171,6 +179,7 @@ export class Controller {
                     fallDist: 0,
                     falling: false,
                     carryingRocks: 0,
+                    carryingSeeds: 0,
                     bot: bots[j],
                     ctx: {},
                     lastMoves: []
@@ -349,7 +358,7 @@ export class Controller {
                             break;
                         }
 
-                        if (y >= roof[x] && Math.random() < BARREN_DIRT_SKY_TO_DIRT_ODDS) {
+                        if (y >= roof[x] && this.world.getCell(x, y + 1) != Cell.Seedling && Math.random() < BARREN_DIRT_SKY_TO_DIRT_ODDS) {
                             this.world.setCell(x, y, Cell.Dirt);
                             break;
                         }
@@ -442,6 +451,14 @@ export class Controller {
 
                         break;
                     }
+                    case Cell.Seedling: {
+                        if (this.world.getCell(x, y - 1) == Cell.Empty) {
+                            this.world.setCell(x, y, Cell.Empty);
+                            break;
+                        }
+
+                        break;
+                    }
                 }
             }
         }
@@ -472,8 +489,8 @@ export class Controller {
                 if (typeof move != "object") throw new Error("Invalid move: `typeof` is not `\"object\"`");
                 if (Array.isArray(move)) throw new Error("Invalid move: is an array");
                 if (!("type" in move)) throw new Error("Invalid move: non-null with no `type`");
-                if (!["left", "right", "climb_up", "climb_down", "dig", "drop", "eat", "bite"].includes(move.type)) throw new Error("Invalid move: invalid `type`: `" + JSON.stringify(move.type) + "`");
-                if (["dig", "drop", "eat"].includes(move.type) || move.type == "bite" && "pos" in move) {
+                if (!["left", "right", "climb_up", "climb_down", "dig", "dropRock", "plantSeeds", "eat", "bite"].includes(move.type)) throw new Error("Invalid move: invalid `type`: `" + JSON.stringify(move.type) + "`");
+                if (["dig", "dropRock", "plantSeeds", "eat"].includes(move.type) || move.type == "bite" && "pos" in move) {
                     if (!("pos" in move)) throw new Error("Invalid move: missing `pos` for " + move.type);
                     if (move.pos === undefined) throw new Error("Invalid move: `move.pos` is `undefined` for " + move.type);
                     if (move.pos === null) throw new Error("Invalid move: `move.pos` is `null` for " + move.type);
@@ -530,6 +547,18 @@ export class Controller {
                 const cell = this.world.getCell(move.pos.x, move.pos.y);
 
                 switch (cell) {
+                    case Cell.SmallGrassTufts: {
+                        this.world.setCell(move.pos.x, move.pos.y, Cell.Empty);
+                        if (Math.random() <SMALL_GRASS_TUFTS_SEEDS_ODDS) creature.carryingSeeds++;
+
+                        return true;
+                    }
+                    case Cell.LargeGrassTufts: {
+                        this.world.setCell(move.pos.x, move.pos.y, Cell.SmallGrassTufts);
+                        if (Math.random() < LARGE_GRASS_TUFTS_SEEDS_ODDS) creature.carryingSeeds++;
+
+                        return true;
+                    }
                     case Cell.GrassyDirt:
                     case Cell.BarrenDirt:
                     case Cell.Dirt:
@@ -562,12 +591,17 @@ export class Controller {
 
                         return true;
                     }
+                    case Cell.Seedling: {
+                        this.world.setCell(move.pos.x, move.pos.y, Cell.Empty);
+
+                        return true;
+                    }
                     default: {
                         return false;
                     }
                 }
             }
-            case "drop": {
+            case "dropRock": {
                 if (!isValidTarget(creature, move.pos, this.world)) return false;
                 if (creature.carryingRocks == 0) return false;
                 if (safe && move.pos.x == creature.pos.x && move.pos.y >= creature.pos.y) return false;
@@ -593,6 +627,17 @@ export class Controller {
                         }
                     }
                 }
+
+                return true;
+            }
+            case "plantSeeds": {
+                if (!isValidTarget(creature, move.pos, this.world)) return false;
+                if (creature.carryingSeeds == 0) return false;
+
+                if (this.world.isSolid(move.pos.x, move.pos.y) || this.world.getCell(move.pos.x, move.pos.y - 1) != Cell.BarrenDirt) return false;
+
+                this.world.setCell(move.pos.x, move.pos.y, Cell.Seedling);
+                creature.carryingSeeds--;
 
                 return true;
             }
@@ -632,6 +677,11 @@ export class Controller {
                         fullness: MOSS_FULLNESS,
                         setCell: Cell.Bedrock,
                     },
+                    [Cell.Seedling]: {
+                        hp: SEEDLING_HIT_POINTS,
+                        fullness: SEEDLING_FULLNESS,
+                        setCell: Cell.Empty
+                    }
                 };
 
                 const food = foods[cell];
